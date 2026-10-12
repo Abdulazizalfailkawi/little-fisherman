@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Design tokens — deep-sea dark theme
+   ------------------------------------------------------------------ */
+@theme {
+  --color-abyss: #050d18;
+  --color-navy: #081426;
+  --color-surface: #0d1c33;
+  --color-surface-2: #132742;
+  --color-surface-3: #1a3354;
+  --color-line: #213d63;
+  --color-ocean: #2f7fe0;
+  --color-ocean-deep: #1d5fb3;
+  --color-teal: #2dd4bf;
+  --color-teal-dim: #14b8a6;
+  --color-ink: #e8f0fa;
+  --color-ink-2: #b9cbe0;
+  --color-muted: #7f97b3;
+  --color-good: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 1.25rem;
+}
+
+:root {
+  color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  background: var(--color-abyss);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(1200px 600px at 50% -200px, rgba(47, 127, 224, 0.16), transparent 60%),
+    linear-gradient(180deg, var(--color-navy) 0%, var(--color-abyss) 100%) fixed;
+  font-feature-settings: "tnum" 1;
+}
+
+/* iOS: inputs below 16px trigger zoom-on-focus */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+input[type="datetime-local"],
+input[type="date"] {
+  min-height: 3rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* numbers & codes stay LTR inside RTL text */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Print (personal fishing report)
+   ------------------------------------------------------------------ */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #0b1a2e !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-card {
+    background: #fff !important;
+    border: 1px solid #cfd8e3 !important;
+    color: #0b1a2e !important;
+    break-inside: avoid;
+  }
+  .print-muted {
+    color: #475569 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}

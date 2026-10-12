@@ -1,0 +1,41 @@
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import { Providers } from "@/components/Providers";
+import "./globals.css";
+
+const plex = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "الصياد الصغير · Fishing Journal",
+  description: "سجل رحلات الصيد ومجموعة الأسماك — Personal fishing journal for Kuwait",
+  manifest: "/manifest.webmanifest",
+  applicationName: "الصياد الصغير",
+  appleWebApp: { capable: true, title: "الصياد الصغير", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#081426",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ar" dir="rtl" className={plex.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}

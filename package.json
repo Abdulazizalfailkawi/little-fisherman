@@ -1,0 +1,36 @@
+{
+  "name": "fishing-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal fishing journal & tracker (Kuwait) — Arabic/English, Hijri/Gregorian, offline drafts, AI fish ID",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
+    "@supabase/supabase-js": "2.117.3",
+    "idb": "8.0.4",
+    "lucide-react": "1.55.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "3.10.1",
+    "suncalc": "2.1.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/suncalc": "^1.9.2",
+    "fake-indexeddb": "^6.0.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "~5.9.0",
+    "vitest": "5.0.4"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "الصياد الصغير — Fishing Journal",
+  "short_name": "الصياد الصغير",
+  "description": "سجل رحلات الصيد ومجموعة الأسماك والأرقام القياسية",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050d18",
+  "theme_color": "#081426",
+  "categories": ["sports", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "سجّل سمكة", "url": "/quick?fish=1" },
+    { "name": "ابدأ رحلة", "url": "/quick" }
+  ]
+}

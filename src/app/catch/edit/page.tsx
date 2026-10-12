@@ -1,0 +1,303 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Camera, Clock, ImagePlus, Plus, Save, X } from "lucide-react";
+import { AiPanel } from "@/components/AiPanel";
+import { Photo } from "@/components/common";
+import { EquipmentPicker, LocationPicker, SpeciesPicker } from "@/components/pickers";
+import { Button, Card, Choice, Field, Input, NumberInput, Notice, PageHeader, Select, Textarea, Toggle } from "@/components/ui";
+import { MOON_EMOJI } from "@/lib/astro";
+import { useStore } from "@/lib/db/store";
+import { newCatch } from "@/lib/factory";
+import { MOON_LABEL, TIDE_LABEL, useI18n } from "@/lib/i18n";
+import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
+import { MOON_PHASES, TIDES, type Catch, type IdentificationStatus } from "@/lib/types";
+import { validateCatch } from "@/lib/validate";
+
+export default function Page() {
+  return (
+    <Suspense>
+      <CatchEdit />
+    </Suspense>
+  );
+}
+
+function CatchEdit() {
+  const sp = useSearchParams();
+  const id = sp.get("id");
+  const tripId = sp.get("trip");
+  const { ds, idx, save, remove, addPhoto } = useStore();
+  const { t, lang, name } = useI18n();
+  const router = useRouter();
+  const existing = id ? ds.catches.find((c) => c.id === id) : undefined;
+  const trip = idx.tripById.get(existing?.trip_id ?? tripId ?? "");
+
+  const [c, setC] = useState<Catch | null>(null);
+  const [timeIn, setTimeIn] = useState("");
+  const [equip, setEquip] = useState<string[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const camRef = useRef<HTMLInputElement>(null);
+  const libRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (c || !trip) return;
+    if (id && !existing) return;
+    const base = existing ?? newCatch(trip, { pe_rating: trip.line_pe ?? null, lure_bait: trip.lure_bait ?? null });
+    setC(base);
+    setTimeIn(toLocalInput(base.caught_at));
+    setEquip(ds.catch_equipment.filter((x) => x.catch_id === base.id).map((x) => x.equipment_id));
+  }, [c, trip, id, existing, ds.catch_equipment]);
+
+  if (!trip)
+    return (
+      <>
+        <PageHeader title={t("تسجيل سمكة", "Log a fish")} back />
+        <Notice tone="warn">{t("الرحلة غير موجودة.", "Trip not found.")}</Notice>
+      </>
+    );
+  if (!c) return <PageHeader title="…" back />;
+
+  const set = <K extends keyof Catch>(k: K, v: Catch[K]) => setC((p) => (p ? { ...p, [k]: v } : p));
+
+  const onPhoto = async (files: FileList | null) => {
+    const f = files?.[0];
+    if (!f) return;
+    setPhotoBusy(true);
+    setPhotoErr(null);
+    try {
+      const m = await addPhoto(f);
+      setC((p) => (p ? { ...p, photo_media_id: m.id, ai_suggestion: p.photo_media_id === m.id ? p.ai_suggestion : null } : p));
+    } catch {
+      setPhotoErr(t("تعذرت قراءة الصورة. جرّب صورة أخرى.", "Couldn't read that image. Try another one."));
+    } finally {
+      setPhotoBusy(false);
+      if (camRef.current) camRef.current.value = "";
+      if (libRef.current) libRef.current.value = "";
+    }
+  };
+
+  const errText = (k: string) =>
+    errors[k] &&
+    ({
+      required: t("مطلوب", "Required"),
+      range: t("قيمة غير منطقية", "Value out of range"),
+      outside_trip: t("الوقت خارج وقت الرحلة — تأكد منه", "Time is outside the trip — please check"),
+      long: t("النص طويل جداً", "Text too long"),
+    }[errors[k]] ?? errors[k]);
+
+  const doSave = async (andAnother: boolean, force = false) => {
+    const next: Catch = { ...c, caught_at: fromLocalInput(timeIn) ?? "" };
+    if (!next.species_id && next.identification_status !== "pending_ai") next.identification_status = "unidentified";
+    if (next.species_id && next.identification_status === "unidentified") next.identification_status = "manual";
+    const e = validateCatch(next, trip);
+    if (force) delete e.caught_at;
+    setErrors(e);
+    if (Object.keys(e).length) return;
+    setSaving(true);
+    await save("catches", next);
+    const before = ds.catch_equipment.filter((x) => x.catch_id === next.id);
+    const rm = before.filter((x) => !equip.includes(x.equipment_id));
+    const add = equip.filter((eid) => !before.some((x) => x.equipment_id === eid));
+    if (rm.length) await remove("catch_equipment", rm);
+    if (add.length) await save("catch_equipment", add.map((eid) => ({ catch_id: next.id, equipment_id: eid, created_at: new Date().toISOString() })));
+    if (andAnother) {
+      const fresh = newCatch(trip, {
+        species_id: next.species_id,
+        pe_rating: next.pe_rating,
+        lure_bait: next.lure_bait,
+        depth_m: next.depth_m,
+        technique_id: next.technique_id,
+        location_id: next.location_id,
+      });
+      setC(fresh);
+      setTimeIn(nowLocalInput());
+      setSaving(false);
+      window.scrollTo({ top: 0 });
+      router.replace(`/catch/edit?trip=${trip.id}`);
+    } else router.replace(`/trip?id=${trip.id}`);
+  };
+
+  const loc = trip.location_id ? idx.locById.get(trip.location_id) : null;
+  const tech = (c.technique_id ?? trip.technique_id) ? idx.techById.get((c.technique_id ?? trip.technique_id)!) : null;
+
+  return (
+    <>
+      <PageHeader title={existing ? t("تعديل الصيدة", "Edit catch") : t("سمكة جديدة", "New fish")} subtitle={trip.title || loc?.name || undefined} back />
+
+      <div className="space-y-3">
+        <Card className="space-y-3">
+          {c.photo_media_id ? (
+            <div className="relative">
+              <Photo mediaId={c.photo_media_id} variant="full" className="aspect-[4/3] w-full rounded-xl" />
+              <button
+                type="button"
+                aria-label="remove photo"
+                onClick={() => setC({ ...c, photo_media_id: null, ai_suggestion: null })}
+                className="absolute end-2 top-2 grid size-9 place-items-center rounded-full bg-black/60"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" size="lg" variant="secondary" loading={photoBusy} onClick={() => camRef.current?.click()} className="min-h-24 flex-col">
+                <Camera className="size-7 text-teal" /> {t("الكاميرا", "Camera")}
+              </Button>
+              <Button type="button" size="lg" variant="secondary" loading={photoBusy} onClick={() => libRef.current?.click()} className="min-h-24 flex-col">
+                <ImagePlus className="size-7 text-teal" /> {t("من الصور", "Photo library")}
+              </Button>
+            </div>
+          )}
+          <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPhoto(e.target.files)} />
+          <input ref={libRef} type="file" accept="image/*" hidden onChange={(e) => onPhoto(e.target.files)} />
+          {photoErr && <Notice tone="bad">{photoErr}</Notice>}
+
+          {c.photo_media_id && (
+            <AiPanel
+              photoMediaId={c.photo_media_id}
+              suggestion={c.ai_suggestion}
+              context={{ location: loc?.name, technique: tech?.name_en, depth_m: c.depth_m ?? trip.water_depth_m ?? undefined }}
+              onSuggestion={(s) => setC((p) => (p ? { ...p, ai_suggestion: s, ai_species_id: null } : p))}
+              onPick={(speciesId, status: IdentificationStatus) =>
+                setC((p) =>
+                  p
+                    ? {
+                        ...p,
+                        species_id: speciesId,
+                        identification_status: status,
+                        ai_species_id: status === "ai_confirmed" ? speciesId : p.ai_species_id,
+                      }
+                    : p,
+                )
+              }
+              onDefer={() => setC((p) => (p ? { ...p, identification_status: "pending_ai" } : p))}
+            />
+          )}
+          {c.identification_status === "pending_ai" && !c.species_id && (
+            <Notice>{t("سيتم تذكيرك بالتعرّف على هذه السمكة عند الاتصال.", "You'll be reminded to identify this fish when online.")}</Notice>
+          )}
+
+          <Field label={t("النوع", "Species")} hint={c.identification_status.startsWith("ai_") ? t("مؤكد من اقتراح AI", "Confirmed from AI suggestion") : undefined}>
+            <SpeciesPicker
+              value={c.species_id}
+              onChange={(v) =>
+                setC({
+                  ...c,
+                  species_id: v,
+                  identification_status: !v ? "unidentified" : c.ai_suggestion ? "ai_corrected" : "manual",
+                })
+              }
+              placeholder={t("اختر النوع (أو اتركه لاحقاً)", "Choose species (or leave for later)")}
+            />
+          </Field>
+        </Card>
+
+        <Card className="space-y-4">
+          <Field label={t("وقت الصيد (الكويت)", "Catch time (Kuwait)")} error={errText("caught_at")}>
+            <div className="flex gap-2">
+              <Input type="datetime-local" value={timeIn} onChange={(e) => setTimeIn(e.target.value)} />
+              <Button type="button" variant="secondary" onClick={() => setTimeIn(nowLocalInput())} aria-label="now">
+                <Clock className="size-4" />
+              </Button>
+            </div>
+          </Field>
+          {errors.caught_at === "outside_trip" && (
+            <Button size="sm" variant="ghost" onClick={() => doSave(false, true)}>
+              {t("الوقت صحيح، احفظ على أي حال", "Time is right, save anyway")}
+            </Button>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Field label={t("الوزن (كغ)", "Weight (kg)")} error={errText("weight_kg")}>
+                <NumberInput value={c.weight_kg} onChange={(v) => set("weight_kg", v)} placeholder="0.0" />
+              </Field>
+              <Toggle checked={c.weight_is_estimate} onChange={(v) => set("weight_is_estimate", v)} label={t("تقديري", "Estimated")} />
+            </div>
+            <div>
+              <Field label={t("الطول (سم)", "Length (cm)")} error={errText("length_cm")}>
+                <NumberInput value={c.length_cm} onChange={(v) => set("length_cm", v)} placeholder="0" />
+              </Field>
+              <Toggle checked={c.length_is_estimate} onChange={(v) => set("length_is_estimate", v)} label={t("تقديري", "Estimated")} />
+            </div>
+          </div>
+          <Choice
+            value={c.released ? "released" : "kept"}
+            allowClear={false}
+            onChange={(v) => set("released", v === "released")}
+            options={[
+              { value: "kept", label: t("احتفظت بها", "Kept") },
+              { value: "released", label: t("أطلقتها", "Released") },
+            ]}
+          />
+        </Card>
+
+        <details className="rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4" open={!!(c.depth_m || c.location_id || c.technique_id || c.notes || equip.length)}>
+          <summary className="cursor-pointer list-none font-semibold">⚙️ {t("تفاصيل إضافية (اختياري)", "More details (optional)")}</summary>
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t("العمق (م)", "Depth (m)")} error={errText("depth_m")}>
+                <NumberInput value={c.depth_m} onChange={(v) => set("depth_m", v)} />
+              </Field>
+              <Field label="PE" error={errText("pe_rating")}>
+                <NumberInput value={c.pe_rating} onChange={(v) => set("pe_rating", v)} />
+              </Field>
+              <Field label={t("نوع الخيط", "Line type")}>
+                <Input value={c.line_type ?? ""} onChange={(e) => set("line_type", e.target.value || null)} placeholder="PE / Mono / FC" />
+              </Field>
+              <Field label={t("الطُعم / الجك", "Lure / jig / bait")}>
+                <Input value={c.lure_bait ?? ""} onChange={(e) => set("lure_bait", e.target.value || null)} />
+              </Field>
+            </div>
+            <Field label={t("الطريقة (إذا اختلفت عن الرحلة)", "Technique (if different from trip)")}>
+              <Choice
+                value={c.technique_id}
+                onChange={(v) => set("technique_id", v)}
+                options={[...ds.techniques].sort((a, b) => a.sort_order - b.sort_order).map((x) => ({ value: x.id, label: name(x) }))}
+              />
+            </Field>
+            <Field label={t("الموقع (إذا اختلف عن الرحلة)", "Spot (if different from trip)")}>
+              <LocationPicker value={c.location_id} onChange={(v) => set("location_id", v)} />
+            </Field>
+            <Field label={t("المعدات المستخدمة", "Gear used")}>
+              <EquipmentPicker value={equip} onChange={setEquip} />
+            </Field>
+            <Field label={t("المد والجزر", "Tide")}>
+              <Choice value={c.tide} onChange={(v) => set("tide", v)} options={TIDES.map((x) => ({ value: x, label: TIDE_LABEL[x][lang] }))} />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t("طور القمر", "Moon phase")}>
+                <Select
+                  value={c.moon_phase}
+                  onChange={(v) => set("moon_phase", v as Catch["moon_phase"])}
+                  placeholder={t("من الرحلة", "From trip")}
+                  options={MOON_PHASES.map((m) => ({ value: m, label: `${MOON_EMOJI[m]} ${MOON_LABEL[m][lang]}` }))}
+                />
+              </Field>
+              <Field label={t("الطقس", "Weather")}>
+                <Input value={c.weather ?? ""} onChange={(e) => set("weather", e.target.value || null)} />
+              </Field>
+            </div>
+            <Field label={t("ملاحظات", "Notes")} error={errText("notes")}>
+              <Textarea value={c.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
+            </Field>
+          </div>
+        </details>
+      </div>
+
+      <div className="sticky bottom-[calc(var(--safe-bottom)+5.75rem)] z-20 mt-4 flex gap-2 rounded-2xl border border-line bg-navy/95 p-2 backdrop-blur">
+        <Button size="lg" className="flex-1" loading={saving} onClick={() => doSave(false)}>
+          <Save className="size-5" /> {t("حفظ", "Save")}
+        </Button>
+        {!existing && (
+          <Button size="lg" variant="teal" loading={saving} onClick={() => doSave(true)}>
+            <Plus className="size-5" /> {t("حفظ وأخرى", "Save + next")}
+          </Button>
+        )}
+      </div>
+    </>
+  );
+}
