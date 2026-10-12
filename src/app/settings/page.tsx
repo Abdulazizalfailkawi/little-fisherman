@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CloudUpload, Database, Download, LogOut, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
-import { Badge, Button, Card, Choice, Notice, PageHeader, SectionTitle, Toggle } from "@/components/ui";
+import { Badge, Button, Card, Choice, Notice, PageHeader, SectionTitle, Toggle, Field, Input } from "@/components/ui";
 import { aiConfigured } from "@/lib/ai";
 import { base64ToBlob, buildBackup, download, parseBackup } from "@/lib/backup";
 import { catchesCSV, statsCSV, tripsCSV } from "@/lib/csv";
@@ -16,6 +16,7 @@ import { fmtHijri, hijriCalendarName, toHijri } from "@/lib/hijri";
 import { useI18n } from "@/lib/i18n";
 import { supabaseConfigured } from "@/lib/supabase";
 import { readWindUnit, saveWindUnit, type WindUnit } from "@/lib/marine/units";
+import { DEFAULT_CYCLE, formatRanges, overlaps, parseRanges, readCycleConfig, saveCycleConfig } from "@/lib/tidecycle";
 import { tripRows } from "@/lib/stats";
 import { fmtDateTime, todayKey } from "@/lib/time";
 import { TABLE_ORDER, type Dataset } from "@/lib/types";
@@ -39,6 +40,60 @@ function WindUnitChoice() {
         { value: "ms", label: t("م/ث", "m/s") },
       ]}
     />
+  );
+}
+
+function CycleSettings() {
+  const { t } = useI18n();
+  const [hamal, setHamal] = useState("");
+  const [fasad, setFasad] = useState("");
+  const [msg, setMsg] = useState<{ tone: "info" | "bad"; text: string } | null>(null);
+  useEffect(() => {
+    const c = readCycleConfig();
+    setHamal(formatRanges(c.hamal));
+    setFasad(formatRanges(c.fasad));
+  }, []);
+  const saveIt = () => {
+    const h = parseRanges(hamal);
+    const f = parseRanges(fasad);
+    if (!h || !f) return setMsg({ tone: "bad", text: t("صيغة غير صحيحة — مثال: 13-18, 28-3", "Invalid format — e.g. 13-18, 28-3") });
+    const cfg = { hamal: h, fasad: f };
+    if (overlaps(cfg)) return setMsg({ tone: "bad", text: t("بعض الأيام موجودة في الحمل والفساد معاً", "Some days are in both Haml and Fasad") });
+    saveCycleConfig(cfg);
+    setMsg({ tone: "info", text: t("تم الحفظ", "Saved") });
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-xs leading-relaxed text-muted">
+        {t(
+          "الحمل: أيام المد القوي قرب المحاق والبدر. الفساد: أيام المد الضعيف قرب التربيعين. تُحسب حسب اليوم الهجري (مع الإزاحة أعلاه). الأيام بين النطاقين انتقالية. عدّلها حسب العرف اللي تمشي عليه.",
+          "Haml: strong-tide days near the new and full moon. Fasad: weak-tide days near the quarters. Counted by Hijri day (with the offset above). Days outside both are transitional. Adjust to the convention you follow.",
+        )}
+      </p>
+      <Field label={t("أيام الحمل (هجري)", "Haml days (Hijri)")} hint="13-18, 28-3">
+        <Input dir="ltr" value={hamal} onChange={(e) => setHamal(e.target.value)} />
+      </Field>
+      <Field label={t("أيام الفساد (هجري)", "Fasad days (Hijri)")} hint="6-11, 20-25">
+        <Input dir="ltr" value={fasad} onChange={(e) => setFasad(e.target.value)} />
+      </Field>
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      <div className="flex gap-2">
+        <Button className="flex-1" onClick={saveIt}>
+          {t("حفظ", "Save")}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            saveCycleConfig(null);
+            setHamal(formatRanges(DEFAULT_CYCLE.hamal));
+            setFasad(formatRanges(DEFAULT_CYCLE.fasad));
+            setMsg({ tone: "info", text: t("رجعت للافتراضي", "Reset to default") });
+          }}
+        >
+          {t("الافتراضي", "Default")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -191,6 +246,13 @@ export default function SettingsPage() {
             `Dates are calculated with Umm al-Qura (${hijriCalendarName()}). If Kuwait's official moon sighting differs, set an offset here (applies to all displayed dates), or correct a single trip from its edit page.`,
           )}
         </p>
+      </Card>
+
+      <SectionTitle>
+        <span id="cycle">{t("الحمل والفساد", "Haml & Fasad")}</span>
+      </SectionTitle>
+      <Card>
+        <CycleSettings />
       </Card>
 
       <SectionTitle>

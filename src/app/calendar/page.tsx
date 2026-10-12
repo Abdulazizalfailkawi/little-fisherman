@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { CatchRow, TripCard } from "@/components/common";
 import { FilterBar } from "@/components/Filters";
-import { Button, Card, Choice, N, Notice, PageHeader, SectionTitle, cn } from "@/components/ui";
+import { Badge, Button, Card, Choice, N, Notice, PageHeader, SectionTitle, cn } from "@/components/ui";
+import { CYCLE_LABEL, DEFAULT_CYCLE, cycleInfo, cycleOnDate, readCycleConfig, type CycleConfig } from "@/lib/tidecycle";
 import { useStore } from "@/lib/db/store";
 import { addHijriMonths, fmtHijri, hijriCalendarName, hijriForDateKey, hijriMonthDays, hijriMonthName, parseHijri } from "@/lib/hijri";
 import { useI18n } from "@/lib/i18n";
@@ -29,6 +30,22 @@ export default function CalendarPage() {
   const [h, setH] = useState({ year: th.year, month: th.month });
   const [selected, setSelected] = useState<string | null>(today);
   const [f, setF] = useState<Filters>({});
+  const [cycleCfg, setCycleCfg] = useState<CycleConfig>(DEFAULT_CYCLE);
+  const [showCycle, setShowCycle] = useState(true);
+  useEffect(() => {
+    setCycleCfg(readCycleConfig());
+    try {
+      setShowCycle(localStorage.getItem("ft.showCycle") !== "0");
+    } catch {}
+  }, []);
+  const toggleCycle = () => {
+    setShowCycle((v) => {
+      try {
+        localStorage.setItem("ft.showCycle", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  };
 
   const rows = useMemo(() => tripRows(ds, idx, { techniqueId: f.techniqueId, speciesId: f.speciesId, locationId: f.locationId }, hijriOffset, true), [ds, idx, f, hijriOffset]);
   const days = view === "greg" ? gregMonthDays(g.year, g.month) : hijriMonthDays(h.year, h.month, hijriOffset);
@@ -53,6 +70,11 @@ export default function CalendarPage() {
   const lead = days.length ? dateKeyToDate(days[0]).getUTCDay() : 0;
   const monthRows = days.flatMap((d) => byDay.get(d) ?? []).filter((r) => r.trip.status === "completed");
   const ms = summarize(monthRows);
+  const cycleOf = (key: string) => cycleOnDate(key, hijriOffset, cycleCfg);
+  const monthByCycle = (["hamal", "fasad"] as const).map((c) => {
+    const rs = monthRows.filter((r) => cycleOf(r.day) === c);
+    return { c, trips: rs.length, successful: rs.filter((r) => r.success).length, fish: rs.reduce((a, r) => a + r.catches.length, 0) };
+  });
 
   const step = (n: number) => {
     if (view === "greg") {
@@ -139,6 +161,7 @@ export default function CalendarPage() {
             const success = trips.some((r) => r.success);
             const primary = view === "greg" ? Number(d.slice(8)) : hijriForDateKey(d, hijriOffset).day;
             const second = view === "greg" ? hijriForDateKey(d, hijriOffset).day : Number(d.slice(8));
+            const cyc = showCycle ? cycleOf(d) : "between";
             return (
               <button
                 key={d}
@@ -152,6 +175,12 @@ export default function CalendarPage() {
               >
                 <span>{primary}</span>
                 <span className="text-[9px] text-muted">{second}</span>
+                {cyc !== "between" && (
+                  <span
+                    aria-label={CYCLE_LABEL[cyc][lang]}
+                    className={cn("absolute inset-x-2 bottom-0.5 h-1 rounded-full", cyc === "hamal" ? "bg-ocean" : "bg-warn/80")}
+                  />
+                )}
                 {trips.length > 0 && (
                   <span
                     className={cn(
@@ -173,6 +202,19 @@ export default function CalendarPage() {
           <span className="flex items-center gap-1">
             <span className="size-3 rounded bg-surface-3 ring-1 ring-muted/40" /> {t("رحلة بدون صيد", "Trip without catch")}
           </span>
+          {showCycle && (
+            <>
+              <span className="flex items-center gap-1">
+                <span className="h-1 w-4 rounded-full bg-ocean" /> {t("حمل (مد قوي)", "Haml (strong tides)")}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1 w-4 rounded-full bg-warn/80" /> {t("فساد (مد ضعيف)", "Fasad (weak tides)")}
+              </span>
+            </>
+          )}
+          <button className="text-teal underline-offset-2 hover:underline" onClick={toggleCycle}>
+            {showCycle ? t("إخفاء الحمل والفساد", "Hide Haml/Fasad") : t("إظهار الحمل والفساد", "Show Haml/Fasad")}
+          </button>
         </div>
       </Card>
 
@@ -191,11 +233,44 @@ export default function CalendarPage() {
         </Card>
       </div>
 
+      {showCycle && monthRows.length > 0 && (
+        <Card className="mt-2 space-y-1 p-3 text-sm">
+          {monthByCycle.map((x) => (
+            <div key={x.c} className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <span className={cn("h-1.5 w-4 rounded-full", x.c === "hamal" ? "bg-ocean" : "bg-warn/80")} /> {t(`رحلات ال${CYCLE_LABEL[x.c].ar}`, `${CYCLE_LABEL[x.c].en} trips`)}
+              </span>
+              <span className="text-ink-2">
+                {x.trips ? (
+                  <>
+                    {x.fish} {t("سمكة", "fish")} · {t("نجاح", "success")} {pct(x.successful / x.trips)} <N n={x.trips} />
+                  </>
+                ) : (
+                  "—"
+                )}
+              </span>
+            </div>
+          ))}
+          <p className="text-xs text-muted">{t("أعداد هذا الشهر فقط — للاطلاع، وليست سبباً.", "This month only — for reference, not a cause.")}</p>
+        </Card>
+      )}
+
       {selected && (
         <>
           <SectionTitle>
             {fmtDate(selected, lang, { weekday: "long" })} · {fmtHijri(hijriForDateKey(selected, hijriOffset), lang)}
           </SectionTitle>
+          {showCycle &&
+            (() => {
+              const ci = cycleInfo(selected, hijriOffset, cycleCfg);
+              return (
+                <div className="mb-2 px-1">
+                  <Badge tone={ci.cycle === "hamal" ? "ocean" : ci.cycle === "fasad" ? "warn" : "default"}>
+                    {ci.cycle === "between" ? t(CYCLE_LABEL.between.ar, CYCLE_LABEL.between.en) : t(`${CYCLE_LABEL[ci.cycle].ar} — اليوم ${ci.day}`, `${CYCLE_LABEL[ci.cycle].en} — day ${ci.day}`)}
+                  </Badge>
+                </div>
+              );
+            })()}
           {sel.length === 0 ? (
             <p className="px-1 text-sm text-muted">{t("لا توجد رحلات في هذا اليوم.", "No trips on this day.")}</p>
           ) : (
