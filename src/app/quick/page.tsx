@@ -7,10 +7,12 @@ import { DualDate } from "@/components/common";
 import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
 import { useStore } from "@/lib/db/store";
 import { lastUsed, newTrip } from "@/lib/factory";
+import { coordsForTrip, takeSnapshot } from "@/lib/marine/snapshots";
 import { useI18n } from "@/lib/i18n";
 
 export default function QuickPage() {
-  const { ds, idx, save } = useStore();
+  const store = useStore();
+  const { ds, idx, save } = store;
   const { t, name } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -24,6 +26,7 @@ export default function QuickPage() {
     setBusy(true);
     const trip = newTrip({ ...lastUsed(ds), status: "draft" });
     await save("trips", trip);
+    void takeSnapshot(store, { at: new Date(trip.started_at), tripId: trip.id, catchId: null, purpose: "trip_start", coords: coordsForTrip(ds, trip) });
     router.replace(thenFish ? `/catch/edit?trip=${trip.id}` : `/trip?id=${trip.id}`);
   };
 

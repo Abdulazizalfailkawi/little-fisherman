@@ -36,13 +36,17 @@ const CASCADE: Partial<Record<TableName, { table: TableName; col: string }[]>> =
   ],
   catches: [
     { table: "catch_equipment", col: "catch_id" },
+    { table: "catch_media", col: "catch_id" },
     { table: "environment_observations", col: "catch_id" },
   ],
   equipment: [
     { table: "trip_equipment", col: "equipment_id" },
     { table: "catch_equipment", col: "equipment_id" },
   ],
-  media: [{ table: "trip_media", col: "media_id" }],
+  media: [
+    { table: "trip_media", col: "media_id" },
+    { table: "catch_media", col: "media_id" },
+  ],
 };
 const SET_NULL: Partial<Record<TableName, { table: TableName; col: string }[]>> = {
   species: [

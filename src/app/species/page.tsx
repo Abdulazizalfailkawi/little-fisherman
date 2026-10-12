@@ -6,6 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import { GitMerge, Pencil, Trash2 } from "lucide-react";
 import { CatchRow, MeasureTag, Photo } from "@/components/common";
 import { NewSpeciesForm, SpeciesSheet } from "@/components/pickers";
+import { SpeciesAnalytics } from "@/components/SpeciesAnalytics";
 import { Badge, Button, Card, Empty, Notice, PageHeader, SectionTitle, Sheet, Stat } from "@/components/ui";
 import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
@@ -90,6 +91,7 @@ function SpeciesPage() {
       {st.count === 0 ? (
         <div className="mt-4">
           <Empty icon="🎯" title={t("لم تصطد هذا النوع بعد", "You haven't caught this species yet")} />
+          <SpeciesAnalytics sp={sp} />
         </div>
       ) : (
         <>
@@ -165,6 +167,8 @@ function SpeciesPage() {
               )}
             </div>
           </Card>
+
+          <SpeciesAnalytics sp={sp} />
 
           <SectionTitle>{t("سجل الصيد", "Catch history")}</SectionTitle>
           <div className="mb-3 grid grid-cols-4 gap-1.5">

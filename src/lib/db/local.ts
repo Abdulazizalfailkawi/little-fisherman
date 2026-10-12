@@ -4,7 +4,7 @@ import { openDB, type IDBPDatabase } from "idb";
 import { TABLE_ORDER, emptyDataset, rowKey, type Dataset, type TableName, type Tables } from "../types";
 
 const DB_NAME = "fishing-tracker";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2: catch_media store
 
 export interface OutboxEntry {
   seq?: number;

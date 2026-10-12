@@ -54,10 +54,40 @@ statistics are computed in the browser from the saved records
 | Weather / sea data (Open-Meteo) with source, model/forecast label, timestamp | ✅ Working |
 | Sunrise/sunset + moon phase & illumination | ✅ Working (calculated) |
 | **AI fish identification** | ⚠️ **Needs `ANTHROPIC_API_KEY`.** Code path is complete; it has **not yet been run against the live API** because no key was configured during development. Until a key is added the button says “AI not configured” and manual selection works. |
-| Tide predictions | ❌ Not implemented on purpose — no reliable free tide source for Kuwaiti waters. Tide is manual entry only, never guessed. |
+| Tide | ✅ Modelled tide (Open-Meteo sea level) with next high/low, phase and 24 h chart, clearly labelled as a model; manual entry of official KMC times; optional WorldTides (untested) |
 | Live on-site observations (buoys etc.) | ❌ Not available — external data is always labelled forecast/model. |
 
 ---
+
+## Marine intelligence (v2)
+
+### What was investigated for Kuwait (Oct 2026)
+
+| Source | Result | How it is used |
+|---|---|---|
+| **Kuwait Meteorological Center** — met.gov.kw/Forecasts/marine.php | Official tide tables for **Shuwaikh** and **Shuaiba**, wave/wind bulletin. **No API**, and the site terms forbid republishing without written approval. | Not scraped. Linked from the app; you can type the official high/low times in as **manual** entries (marked “manual”). |
+| **Open-Meteo Weather** (forecast, Historical Forecast API 2022+, ERA5 archive 1940+) | Verified for Kuwait. Free, non-commercial, CC BY 4.0. | Current/hourly/daily weather, wind, gusts, humidity, cloud, rain probability; historical conditions for past catches (labelled *historical model* or *reanalysis*). |
+| **Open-Meteo Marine** | Verified non-null for Kuwait Bay, Al-Fintas, Kubbar, Qaruh: waves, wind-waves, swell, SST, currents, `sea_level_height_msl`. Grid ~5–9 km; the Al-Fintas query snaps to a sea cell ~15 km offshore (29.21, 48.29). History back to at least 2023 for waves/sea level; **2019 returned nothing** (shown as unavailable). | Waves/swell/SST/currents, and a **modelled** tide series. |
+| `sea_level_height_msl` as tide | Produces a realistic mixed semidiurnal curve (≈2–3 m range in Kuwait Bay), but Open-Meteo documents it as *“not suitable for coastal navigation”*, MSL datum. | High/low tides = local extrema of that series; rising/falling from successive values. Always labelled **model — not an official tide table**. |
+| **WorldTides API** (paid credits) | Station/atlas tide predictions. | Optional, used when `WORLDTIDES_API_KEY` is set. **Not tested** (no key). |
+
+### Data-type labels used everywhere
+`forecast` · `historical model` (archived model run for a past time) · `reanalysis` (ERA5) · `model` (sea-level model) · `calculated` (sun/moon, SunCalc) · `manual` · `unavailable`. Nothing is shown as an observation, because no integrated source provides on-site observations.
+
+### How snapshots work
+* Every trip start (or planned trip) and every catch gets an **environmental snapshot** fetched for **its own time and coordinates** (catch GPS → catch spot → trip GPS → trip spot) via the server route `/api/conditions` (coordinates rounded to ~1 km; responses cached).
+* Snapshots are **append-only** with source, data type, provider valid time and retrieval time. Re-fetching adds a new snapshot; nothing is overwritten. Manual corrections are stored separately and take priority.
+* A catch saved offline gets its snapshot automatically when the device is back online.
+* For an old catch the app requests that date (historical model / reanalysis) — it never uses today's weather. If nothing exists for that time, it stores and shows “Historical data unavailable”.
+
+### New pages
+`/marine` (Marine dashboard) · `/catches` (catch history) · `/reports` (weekly/monthly/yearly/custom, demo excluded) · `/spot?id=` (spot detail with map) · species pages now include **target-trip analytics** (Balool etc.) with explicit denominators and missing-data counts.
+
+### Known limitations
+* No official Kuwaiti tide data can be integrated automatically; the modelled tide may differ from the official Shuwaikh/Shuaiba tables, especially near the coast and inside Kuwait Bay.
+* Marine model cells are coarse; very nearshore/shore spots get the nearest sea cell.
+* Hazard notices (strong wind ≥ 20 kn / gusts ≥ 27 kn, waves ≥ 1.5 m, thunderstorms) are simple flags, **not a safety model** — always check the official marine bulletin.
+* Optional LLM-written summaries were not added; the summary engine is template-based and works without any paid API.
 
 ## 1. Install & run locally
 
@@ -102,7 +132,7 @@ user, so nobody else can spend your credit.
 
 1. Push this folder to a GitHub repo, then “Add New Project” in Vercel and import it — or run `npx vercel` from this folder.
 2. Environment variables (Production + Preview):
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`.
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`, optional `WORLDTIDES_API_KEY`.
 3. Deploy, then set the Supabase **Site URL** to the Vercel URL.
 4. On iPhone: open the URL in Safari → Share → **Add to Home Screen**.
    Open it once while online so the offline copy is stored.

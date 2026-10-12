@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fish, Home, LayoutGrid, Plus, Sailboat } from "lucide-react";
+import { Home, LayoutGrid, Plus, Sailboat, Waves } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "./ui";
 
@@ -13,8 +13,8 @@ export function BottomNav() {
     { href: "/", icon: Home, label: t("الرئيسية", "Home"), match: (p: string) => p === "/" },
     { href: "/trips", icon: Sailboat, label: t("الرحلات", "Trips"), match: (p: string) => p.startsWith("/trip") },
     { href: "/quick", icon: Plus, label: t("تسجيل", "Log"), primary: true, match: () => false },
-    { href: "/collection", icon: Fish, label: t("مجموعتي", "Collection"), match: (p: string) => p.startsWith("/collection") || p.startsWith("/species") },
-    { href: "/more", icon: LayoutGrid, label: t("المزيد", "More"), match: (p: string) => ["/more", "/stats", "/calendar", "/records", "/achievements", "/equipment", "/settings", "/search", "/gallery", "/spots", "/report"].some((x) => p.startsWith(x)) },
+    { href: "/marine", icon: Waves, label: t("البحر", "Marine"), match: (p: string) => p.startsWith("/marine") },
+    { href: "/more", icon: LayoutGrid, label: t("المزيد", "More"), match: (p: string) => ["/more", "/stats", "/calendar", "/records", "/achievements", "/equipment", "/settings", "/search", "/gallery", "/spots", "/spot", "/report", "/reports", "/catches", "/collection", "/species"].some((x) => p.startsWith(x)) },
   ];
   return (
     <nav className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line/50 bg-navy/90 pb-[var(--safe-bottom)] backdrop-blur-xl">

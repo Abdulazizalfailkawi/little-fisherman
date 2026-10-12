@@ -15,9 +15,32 @@ import { buildDemo } from "@/lib/demo";
 import { fmtHijri, hijriCalendarName, toHijri } from "@/lib/hijri";
 import { useI18n } from "@/lib/i18n";
 import { supabaseConfigured } from "@/lib/supabase";
+import { readWindUnit, saveWindUnit, type WindUnit } from "@/lib/marine/units";
 import { tripRows } from "@/lib/stats";
 import { fmtDateTime, todayKey } from "@/lib/time";
 import { TABLE_ORDER, type Dataset } from "@/lib/types";
+
+function WindUnitChoice() {
+  const { t } = useI18n();
+  const [u, setU] = useState<WindUnit>("kn");
+  useEffect(() => setU(readWindUnit()), []);
+  return (
+    <Choice
+      value={u}
+      allowClear={false}
+      onChange={(v) => {
+        if (!v) return;
+        setU(v);
+        saveWindUnit(v);
+      }}
+      options={[
+        { value: "kn", label: t("عقدة", "knots") },
+        { value: "kmh", label: t("كم/س", "km/h") },
+        { value: "ms", label: t("م/ث", "m/s") },
+      ]}
+    />
+  );
+}
 
 export default function SettingsPage() {
   const store = useStore();
@@ -144,6 +167,11 @@ export default function SettingsPage() {
       <SectionTitle>{t("اللغة", "Language")}</SectionTitle>
       <Card>
         <Choice value={lang} allowClear={false} onChange={(v) => v && setLang(v)} options={[{ value: "ar", label: "العربية" }, { value: "en", label: "English" }]} />
+      </Card>
+
+      <SectionTitle>{t("وحدة الرياح", "Wind unit")}</SectionTitle>
+      <Card>
+        <WindUnitChoice />
       </Card>
 
       <SectionTitle>{t("التاريخ الهجري", "Hijri date")}</SectionTitle>
@@ -281,9 +309,10 @@ export default function SettingsPage() {
 
       <SectionTitle>{t("مصادر البيانات وحدودها", "Data sources & limits")}</SectionTitle>
       <Card className="space-y-2 text-xs leading-relaxed text-muted">
-        <p>• {t("الطقس وحالة البحر: Open-Meteo (مجاني، بدون مفتاح). مخرجات نماذج — ليست رصداً فعلياً.", "Weather & sea: Open-Meteo (free, no key). Model output — not on-site observations.")}</p>
+        <p>• {t("الطقس: Open-Meteo (توقعات، وأرشيف توقعات منذ ٢٠٢٢، وإعادة تحليل ERA5 لما قبل). مخرجات نماذج — ليست رصداً فعلياً.", "Weather: Open-Meteo (forecasts, archived forecasts since 2022, ERA5 reanalysis before). Model output — not on-site observations.")}</p>
+        <p>• {t("الموج والسويل وحرارة الماء والتيارات: Open-Meteo Marine (نماذج بدقة ~٥–٩ كم).", "Waves, swell, sea temperature & currents: Open-Meteo Marine (~5–9 km models).")}</p>
+        <p>• {t("المد والجزر: نموذج مستوى البحر من Open-Meteo (ليس جدولاً رسمياً)، أو أوقاتك المدخلة يدوياً من جداول الأرصاد الكويتية (الشويخ، الشعيبة).", "Tide: Open-Meteo sea-level model (not an official table), or times you enter manually from the Kuwait Met tables (Shuwaikh, Shuaiba).")}</p>
         <p>• {t("الشروق والغروب وطور القمر: حسابات فلكية (SunCalc).", "Sunrise, sunset & moon phase: astronomical calculation (SunCalc).")}</p>
-        <p>• {t("المد والجزر: إدخال يدوي فقط — لا يوجد مصدر مجاني موثوق لمياه الكويت.", "Tides: manual entry only — no reliable free source for Kuwaiti waters.")}</p>
         <p>• {t("التعرّف على الأسماك: Claude (Anthropic) — اقتراح فقط ويتطلب تأكيدك.", "Fish ID: Claude (Anthropic) — a suggestion that always needs your confirmation.")}</p>
         <p>• {t("الأوقات معروضة بتوقيت الكويت (UTC+3) ومخزنة بتوقيت UTC.", "Times are shown in Kuwait time (UTC+3) and stored in UTC.")}</p>
       </Card>

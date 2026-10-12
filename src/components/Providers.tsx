@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { evaluateAchievements } from "@/lib/achievements";
 import { StoreProvider, useStore } from "@/lib/db/store";
 import { I18nProvider } from "@/lib/i18n";
+import { catchesNeedingSnapshot, snapshotCatch } from "@/lib/marine/snapshots";
 import { tripRows } from "@/lib/stats";
 import { BottomNav } from "./BottomNav";
 
@@ -71,10 +72,43 @@ function Shell({ children }: { children: React.ReactNode }) {
         <>
           <BottomNav />
           <AchievementRecorder />
+          <SnapshotFiller />
         </>
       )}
     </>
   );
+}
+
+/**
+ * Attaches environmental snapshots to catches that don't have one for their
+ * current timestamp (e.g. saved offline, or time edited). A few per minute.
+ */
+function SnapshotFiller() {
+  const store = useStore();
+  const ref = useRef(store);
+  ref.current = store;
+  useEffect(() => {
+    let busy = false;
+    const run = async () => {
+      if (busy || !navigator.onLine) return;
+      busy = true;
+      try {
+        const todo = catchesNeedingSnapshot(ref.current.ds).slice(0, 3);
+        for (const c of todo) await snapshotCatch(ref.current, c);
+      } finally {
+        busy = false;
+      }
+    };
+    const first = setTimeout(run, 4000);
+    const iv = setInterval(run, 60_000);
+    window.addEventListener("online", run);
+    return () => {
+      clearTimeout(first);
+      clearInterval(iv);
+      window.removeEventListener("online", run);
+    };
+  }, []);
+  return null;
 }
 
 /** Persists first-unlock dates of achievements derived from the records. */

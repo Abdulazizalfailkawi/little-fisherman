@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Pencil, Sparkles, Trash2 } from "lucide-react";
 import { AiPanel } from "@/components/AiPanel";
+import { CatchSummaryCard } from "@/components/CatchSummaryCard";
+import { EnvPanel } from "@/components/EnvPanel";
 import { DualDate, MeasureTag, Photo } from "@/components/common";
 import { Badge, Button, Card, Empty, PageHeader, SectionTitle, Sheet } from "@/components/ui";
 import { MOON_EMOJI } from "@/lib/astro";
@@ -27,6 +29,7 @@ function CatchDetail() {
   const { t, lang, name } = useI18n();
   const router = useRouter();
   const [del, setDel] = useState(false);
+  const [viewer, setViewer] = useState<string | null>(null);
   const c = ds.catches.find((x) => x.id === id);
   if (!c)
     return (
@@ -36,6 +39,7 @@ function CatchDetail() {
       </>
     );
   const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
+  const extraPhotos = ds.catch_media.filter((x) => x.catch_id === c.id).sort((a, b) => a.sort_order - b.sort_order).map((x) => x.media_id);
   const trip = idx.tripById.get(c.trip_id);
   const locId = catchLocation(c, idx);
   const techId = catchTechnique(c, idx);
@@ -62,6 +66,18 @@ function CatchDetail() {
         }
       />
       {c.photo_media_id && <Photo mediaId={c.photo_media_id} variant="full" className="mb-3 max-h-[60dvh] w-full rounded-[var(--radius-card)] object-contain bg-black/30" />}
+      {extraPhotos.length > 0 && (
+        <div className="mb-3 grid grid-cols-4 gap-1.5">
+          {extraPhotos.map((m) => (
+            <button key={m} onClick={() => setViewer(m)} className="aspect-square overflow-hidden rounded-xl">
+              <Photo mediaId={m} className="size-full" />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mb-3">
+        <CatchSummaryCard c={c} />
+      </div>
 
       {!c.species_id && c.photo_media_id && (
         <Card className="mb-3">
@@ -133,10 +149,15 @@ function CatchDetail() {
         <Row k={t("العمق", "Depth")} v={depth ? `${depth.depth} ${t("م", "m")}${depth.fromTrip ? t(" (من الرحلة)", " (trip)") : ""}` : "—"} />
         <Row k={t("الخيط", "Line")} v={[c.line_type, c.pe_rating ? `PE${c.pe_rating}` : null].filter(Boolean).join(" · ") || "—"} />
         <Row k={t("الطُعم", "Lure / bait")} v={c.lure_bait ?? "—"} />
+        {c.rod_reel && <Row k={t("العصا والمكينة", "Rod & reel")} v={c.rod_reel} />}
+        {c.leader && <Row k={t("الليدر", "Leader")} v={c.leader} />}
+        {c.hook && <Row k={t("الميدار", "Hook")} v={c.hook} />}
+        {c.lat != null && <Row k="GPS" v={<span className="ltr">{c.lat}, {c.lng}</span>} />}
         {gear.length > 0 && <Row k={t("المعدات", "Gear")} v={gear.join("، ")} />}
-        <Row k={t("المد والجزر", "Tide")} v={c.tide ? label(TIDE_LABEL, c.tide, lang) : trip?.tide ? `${label(TIDE_LABEL, trip.tide, lang)} ${t("(الرحلة)", "(trip)")}` : "—"} />
-        <Row k={t("القمر", "Moon")} v={c.moon_phase ? `${MOON_EMOJI[c.moon_phase]} ${label(MOON_LABEL, c.moon_phase, lang)}` : "—"} />
       </Card>
+
+      <SectionTitle>{t("الظروف وقت الصيد", "Conditions at catch time")}</SectionTitle>
+      {trip && <EnvPanel trip={trip} c={c} />}
 
       {c.ai_suggestion && c.species_id && (
         <>
@@ -165,6 +186,9 @@ function CatchDetail() {
       <Button variant="danger" className="mt-8 w-full" onClick={() => setDel(true)}>
         <Trash2 className="size-4" /> {t("حذف الصيدة", "Delete catch")}
       </Button>
+      <Sheet open={!!viewer} onClose={() => setViewer(null)} title={t("صورة", "Photo")}>
+        {viewer && <Photo mediaId={viewer} variant="full" className="max-h-[75dvh] w-full rounded-xl object-contain" />}
+      </Sheet>
       <Sheet open={del} onClose={() => setDel(false)} title={t("حذف هذه الصيدة؟", "Delete this catch?")}>
         <div className="flex gap-2">
           <Button

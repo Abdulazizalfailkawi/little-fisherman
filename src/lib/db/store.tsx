@@ -60,7 +60,7 @@ interface StoreValue {
 const Ctx = createContext<StoreValue | null>(null);
 
 const now = () => new Date().toISOString();
-const NO_UPDATED_AT: TableName[] = ["trip_equipment", "catch_equipment", "trip_media", "user_achievements"];
+const NO_UPDATED_AT: TableName[] = ["trip_equipment", "catch_equipment", "trip_media", "catch_media", "user_achievements"];
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);

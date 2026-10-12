@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Camera, Clock, ImagePlus, Plus, Save, X } from "lucide-react";
+import { Camera, Clock, ImagePlus, LocateFixed, Plus, Save, X } from "lucide-react";
 import { AiPanel } from "@/components/AiPanel";
 import { Photo } from "@/components/common";
 import { EquipmentPicker, LocationPicker, SpeciesPicker } from "@/components/pickers";
@@ -14,6 +14,8 @@ import { MOON_LABEL, TIDE_LABEL, useI18n } from "@/lib/i18n";
 import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
 import { MOON_PHASES, TIDES, type Catch, type IdentificationStatus } from "@/lib/types";
 import { validateCatch } from "@/lib/validate";
+import { getGps } from "@/lib/gps";
+import { snapshotCatch } from "@/lib/marine/snapshots";
 
 export default function Page() {
   return (
@@ -27,7 +29,8 @@ function CatchEdit() {
   const sp = useSearchParams();
   const id = sp.get("id");
   const tripId = sp.get("trip");
-  const { ds, idx, save, remove, addPhoto } = useStore();
+  const store = useStore();
+  const { ds, idx, save, remove, addPhoto } = store;
   const { t, lang, name } = useI18n();
   const router = useRouter();
   const existing = id ? ds.catches.find((c) => c.id === id) : undefined;
@@ -36,6 +39,9 @@ function CatchEdit() {
   const [c, setC] = useState<Catch | null>(null);
   const [timeIn, setTimeIn] = useState("");
   const [equip, setEquip] = useState<string[]>([]);
+  const [extra, setExtra] = useState<string[]>([]);
+  const [gpsMsg, setGpsMsg] = useState<string | null>(null);
+  const moreRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState<string | null>(null);
@@ -50,7 +56,8 @@ function CatchEdit() {
     setC(base);
     setTimeIn(toLocalInput(base.caught_at));
     setEquip(ds.catch_equipment.filter((x) => x.catch_id === base.id).map((x) => x.equipment_id));
-  }, [c, trip, id, existing, ds.catch_equipment]);
+    setExtra(ds.catch_media.filter((x) => x.catch_id === base.id).sort((a, b) => a.sort_order - b.sort_order).map((x) => x.media_id));
+  }, [c, trip, id, existing, ds.catch_equipment, ds.catch_media]);
 
   if (!trip)
     return (
@@ -80,6 +87,23 @@ function CatchEdit() {
     }
   };
 
+  // Extra photos of the SAME fish (one catch record, several photos; duplicates are de-duplicated by hash).
+  const onMorePhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setPhotoBusy(true);
+    setPhotoErr(null);
+    try {
+      const ids: string[] = [];
+      for (const f of Array.from(files)) ids.push((await addPhoto(f)).id);
+      setExtra((prev) => [...new Set([...prev, ...ids])].filter((x) => x !== c.photo_media_id));
+    } catch {
+      setPhotoErr(t("تعذرت قراءة الصورة. جرّب صورة أخرى.", "Couldn't read that image. Try another one."));
+    } finally {
+      setPhotoBusy(false);
+      if (moreRef.current) moreRef.current.value = "";
+    }
+  };
+
   const errText = (k: string) =>
     errors[k] &&
     ({
@@ -98,7 +122,19 @@ function CatchEdit() {
     setErrors(e);
     if (Object.keys(e).length) return;
     setSaving(true);
+    const prev = existing;
     await save("catches", next);
+    // Extra photos
+    const beforeM = ds.catch_media.filter((x) => x.catch_id === next.id);
+    const keepM = extra.filter((m) => m !== next.photo_media_id);
+    const rmM = beforeM.filter((x) => !keepM.includes(x.media_id));
+    if (rmM.length) await remove("catch_media", rmM);
+    const ts0 = new Date().toISOString();
+    const addM = keepM.filter((m) => !beforeM.some((x) => x.media_id === m)).map((m) => ({ catch_id: next.id, media_id: m, sort_order: keepM.indexOf(m), created_at: ts0 }));
+    if (addM.length) await save("catch_media", addM);
+    // Environmental snapshot for the catch's own time & place (new catch, or time/place changed).
+    const moved = !prev || prev.caught_at !== next.caught_at || prev.lat !== next.lat || prev.lng !== next.lng || prev.location_id !== next.location_id;
+    if (moved && !next.is_demo) void snapshotCatch({ ...store, ds: { ...store.ds, catches: [...store.ds.catches.filter((x) => x.id !== next.id), next] } }, next);
     const before = ds.catch_equipment.filter((x) => x.catch_id === next.id);
     const rm = before.filter((x) => !equip.includes(x.equipment_id));
     const add = equip.filter((eid) => !before.some((x) => x.equipment_id === eid));
@@ -114,6 +150,7 @@ function CatchEdit() {
         location_id: next.location_id,
       });
       setC(fresh);
+      setExtra([]);
       setTimeIn(nowLocalInput());
       setSaving(false);
       window.scrollTo({ top: 0 });
@@ -155,6 +192,22 @@ function CatchEdit() {
           <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPhoto(e.target.files)} />
           <input ref={libRef} type="file" accept="image/*" hidden onChange={(e) => onPhoto(e.target.files)} />
           {photoErr && <Notice tone="bad">{photoErr}</Notice>}
+          {(c.photo_media_id || extra.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {extra.map((m) => (
+                <div key={m} className="relative">
+                  <Photo mediaId={m} className="size-16 rounded-xl" />
+                  <button type="button" aria-label="remove" onClick={() => setExtra(extra.filter((x) => x !== m))} className="absolute -end-1 -top-1 grid size-6 place-items-center rounded-full bg-black/70">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="secondary" loading={photoBusy} onClick={() => moreRef.current?.click()}>
+                <ImagePlus className="size-4" /> {t("صور إضافية لنفس السمكة", "More photos of this fish")}
+              </Button>
+              <input ref={moreRef} type="file" accept="image/*" multiple hidden onChange={(e) => onMorePhotos(e.target.files)} />
+            </div>
+          )}
 
           {c.photo_media_id && (
             <AiPanel
@@ -252,6 +305,42 @@ function CatchEdit() {
                 <Input value={c.lure_bait ?? ""} onChange={(e) => set("lure_bait", e.target.value || null)} />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t("العصا والمكينة", "Rod & reel")}>
+                <Input value={c.rod_reel ?? ""} onChange={(e) => set("rod_reel", e.target.value || null)} />
+              </Field>
+              <Field label={t("الليدر", "Leader")}>
+                <Input value={c.leader ?? ""} onChange={(e) => set("leader", e.target.value || null)} placeholder="FC 40lb" />
+              </Field>
+              <Field label={t("الميدار / الخطاف", "Hook")}>
+                <Input value={c.hook ?? ""} onChange={(e) => set("hook", e.target.value || null)} />
+              </Field>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-line p-3 text-sm">
+              <span className="text-muted">
+                {c.lat != null ? <span className="ltr">GPS: {c.lat}, {c.lng}</span> : gpsMsg ?? t("إحداثيات الصيدة (اختياري)", "Catch coordinates (optional)")}
+              </span>
+              {c.lat != null ? (
+                <Button size="sm" variant="ghost" onClick={() => setC({ ...c, lat: null, lng: null })}>
+                  {t("إزالة", "Remove")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      const g = await getGps();
+                      setC((p) => (p ? { ...p, lat: g.lat, lng: g.lng } : p));
+                    } catch (e) {
+                      setGpsMsg((e as Error).message === "DENIED" ? t("تم رفض الإذن", "Permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
+                    }
+                  }}
+                >
+                  <LocateFixed className="size-4" /> GPS
+                </Button>
+              )}
+            </div>
             <Field label={t("الطريقة (إذا اختلفت عن الرحلة)", "Technique (if different from trip)")}>
               <Choice
                 value={c.technique_id}
@@ -281,6 +370,13 @@ function CatchEdit() {
                 <Input value={c.weather ?? ""} onChange={(e) => set("weather", e.target.value || null)} />
               </Field>
             </div>
+            <Field
+              label={t("تصحيح التاريخ الهجري (اختياري)", "Hijri date correction (optional)")}
+              hint={t("بصيغة 1448-04-25 — إذا اختلف عن رؤية الهلال الرسمية", "Format 1448-04-25 — if it differs from the official moon sighting")}
+              error={c.hijri_date_override && !/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|30)$/.test(c.hijri_date_override) ? t("صيغة غير صحيحة", "Invalid format") : null}
+            >
+              <Input dir="ltr" value={c.hijri_date_override ?? ""} onChange={(e) => set("hijri_date_override", e.target.value.trim() || null)} placeholder="1448-04-25" />
+            </Field>
             <Field label={t("ملاحظات", "Notes")} error={errText("notes")}>
               <Textarea value={c.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
             </Field>

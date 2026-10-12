@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
-import { CloudDownload, Fish, ImagePlus, Pencil, Sunrise, Sunset, Trash2 } from "lucide-react";
-import { CatchRow, Conditions, DualDate, Photo } from "@/components/common";
+import { Fish, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { CatchRow, DualDate, Photo } from "@/components/common";
+import { EnvPanel } from "@/components/EnvPanel";
 import { Badge, Button, Card, Empty, LinkButton, Notice, PageHeader, SectionTitle, Sheet } from "@/components/ui";
-import { MOON_EMOJI, effectiveMoonPhase, moonAt, sunTimes } from "@/lib/astro";
+import { MOON_EMOJI, effectiveMoonPhase, moonAt } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
-import { degToDir, fetchWeather, weatherLabel } from "@/lib/environment";
-import { uuid } from "@/lib/ids";
 import { EQUIP_LABEL, MOON_LABEL, SEA_LABEL, TIDE_LABEL, WIND_LABEL, label, useI18n } from "@/lib/i18n";
-import { fmtDateTime, fmtTime, tripHours } from "@/lib/time";
-import type { EnvironmentObservation } from "@/lib/types";
+import { fmtDateTime, tripHours } from "@/lib/time";
 
 export default function Page() {
   return (
@@ -33,12 +31,10 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 
 function TripDetail() {
   const id = useSearchParams().get("id");
-  const { ds, idx, save, remove, addPhoto, addVideo, online } = useStore();
+  const { ds, idx, save, remove, addPhoto, addVideo } = useStore();
   const { t, lang, name, num } = useI18n();
   const router = useRouter();
   const [confirmDel, setConfirmDel] = useState(false);
-  const [envBusy, setEnvBusy] = useState(false);
-  const [envErr, setEnvErr] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaErr, setMediaErr] = useState<string | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
@@ -60,42 +56,9 @@ function TripDetail() {
   const hrs = tripHours(trip);
   const gear = ds.trip_equipment.filter((x) => x.trip_id === trip.id).map((x) => ds.equipment.find((e) => e.id === x.equipment_id)).filter(Boolean);
   const media = ds.trip_media.filter((x) => x.trip_id === trip.id);
-  const env = ds.environment_observations.filter((e) => e.trip_id === trip.id && !e.catch_id).sort((a, b) => a.source.localeCompare(b.source));
-  const coords = trip.lat != null ? { lat: trip.lat, lng: trip.lng! } : loc?.lat != null ? { lat: loc.lat, lng: loc.lng! } : null;
-  const sun = coords ? sunTimes(trip.started_at, coords.lat, coords.lng) : null;
   const moon = moonAt(trip.started_at);
   const em = effectiveMoonPhase(trip);
   const speciesCount = new Set(catches.map((c) => c.species_id).filter(Boolean)).size;
-
-  const fetchEnv = async () => {
-    if (!coords) return;
-    setEnvBusy(true);
-    setEnvErr(null);
-    try {
-      const readings = await fetchWeather(coords.lat, coords.lng, trip.started_at);
-      if (!readings.length) {
-        setEnvErr(t("لا توجد بيانات متاحة لهذا الوقت/المكان", "No data available for this time/place"));
-        return;
-      }
-      const old = env.filter((e) => e.source.startsWith("Open-Meteo"));
-      if (old.length) await remove("environment_observations", old);
-      const ts = new Date().toISOString();
-      await save(
-        "environment_observations",
-        readings.map(
-          (r): EnvironmentObservation => ({ id: uuid(), trip_id: trip.id, catch_id: null, ...r, created_at: ts, updated_at: ts }),
-        ),
-      );
-    } catch (e) {
-      setEnvErr(
-        (e as Error).message === "TOO_FAR_AHEAD"
-          ? t("التاريخ بعيد جداً للتوقعات", "Date too far ahead for a forecast")
-          : t("تعذر جلب البيانات — حاول لاحقاً أو أدخلها يدوياً", "Couldn't fetch data — try later or enter manually"),
-      );
-    } finally {
-      setEnvBusy(false);
-    }
-  };
 
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -208,66 +171,8 @@ function TripDetail() {
         </>
       )}
 
-      <SectionTitle>{t("البيئة والفلك", "Environment & astronomy")}</SectionTitle>
-      <Card className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge tone="ocean">{t("محسوب", "Calculated")}</Badge>
-          {sun?.sunrise && (
-            <span className="flex items-center gap-1">
-              <Sunrise className="size-4 text-warn" /> {fmtTime(sun.sunrise, lang)}
-            </span>
-          )}
-          {sun?.sunset && (
-            <span className="flex items-center gap-1">
-              <Sunset className="size-4 text-warn" /> {fmtTime(sun.sunset, lang)}
-            </span>
-          )}
-          <span>
-            {MOON_EMOJI[moon.phase]} {label(MOON_LABEL, moon.phase, lang)} · {Math.round(moon.illumination * 100)}%
-          </span>
-        </div>
-        {!sun && <p className="text-xs text-muted">{t("أضف إحداثيات للرحلة أو للموقع لحساب الشروق والغروب.", "Add coordinates to the trip or spot to calculate sunrise/sunset.")}</p>}
-
-        {env.map((e) => (
-          <div key={e.id} className="rounded-xl bg-surface-2 p-3 text-sm">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <Badge tone={e.kind === "forecast" ? "warn" : e.kind === "observation" ? "good" : "default"}>
-                {{ forecast: t("توقعات", "Forecast"), model: t("نموذج / تقدير", "Model estimate"), observation: t("رصد فعلي", "Observation"), calculated: t("محسوب", "Calculated") }[e.kind]}
-              </Badge>
-              <span className="text-xs text-muted">{e.source}</span>
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              {e.data.weather_code != null && <span>{weatherLabel(e.data.weather_code, lang)}</span>}
-              {e.data.air_temp_c != null && <span>🌡️ {e.data.air_temp_c}°</span>}
-              {e.data.wind_speed_kmh != null && (
-                <span>
-                  💨 {e.data.wind_speed_kmh} {t("كم/س", "km/h")} {label(WIND_LABEL, degToDir(e.data.wind_dir_deg as number), lang)}
-                </span>
-              )}
-              {e.data.wave_height_m != null && <span>🌊 {e.data.wave_height_m} {t("م موج", "m waves")}</span>}
-              {e.data.sea_temp_c != null && <span>🌡️ {t("البحر", "Sea")} {e.data.sea_temp_c}°</span>}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {t("صالح لـ", "Valid for")} {fmtDateTime(e.valid_at, lang)} · {t("جُلب", "fetched")} {fmtDateTime(e.fetched_at, lang)}
-            </div>
-          </div>
-        ))}
-        {envErr && <Notice tone="warn">{envErr}</Notice>}
-        {coords ? (
-          <Button variant="secondary" className="w-full" loading={envBusy} disabled={!online} onClick={fetchEnv}>
-            <CloudDownload className="size-4" />
-            {online ? t("جلب الطقس وحالة البحر (Open-Meteo)", "Fetch weather & sea (Open-Meteo)") : t("يحتاج اتصال إنترنت", "Needs internet")}
-          </Button>
-        ) : (
-          <p className="text-xs text-muted">{t("لجلب الطقس من مصدر خارجي، أضف إحداثيات GPS للرحلة أو لموقع الصيد.", "To fetch weather from an external source, add GPS coordinates to the trip or spot.")}</p>
-        )}
-        <p className="text-xs leading-relaxed text-muted">
-          {t(
-            "بيانات Open-Meteo مخرجات نماذج (توقعات أو تقديرات) وليست رصداً من موقعك. المد والجزر: لا يوجد مصدر مجاني موثوق لمياه الكويت، لذا يُدخل يدوياً فقط.",
-            "Open-Meteo values are model output (forecasts/estimates), not measurements at your spot. Tides: there's no reliable free source for Kuwaiti waters, so tide is manual-entry only.",
-          )}
-        </p>
-      </Card>
+      <SectionTitle>{t("البيئة والظروف", "Environment & conditions")}</SectionTitle>
+      <EnvPanel trip={trip} />
 
       <SectionTitle
         action={

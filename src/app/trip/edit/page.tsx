@@ -13,6 +13,7 @@ import { MOON_LABEL, SEA_LABEL, TIDE_LABEL, WIND_LABEL, useI18n } from "@/lib/i1
 import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
 import { MOON_PHASES, SEA_STATES, TIDES, WIND_DIRS, type Trip } from "@/lib/types";
 import { validateTrip } from "@/lib/validate";
+import { coordsForTrip, takeSnapshot } from "@/lib/marine/snapshots";
 
 export default function Page() {
   return (
@@ -25,7 +26,8 @@ export default function Page() {
 function TripEdit() {
   const sp = useSearchParams();
   const id = sp.get("id");
-  const { ds, idx, save, remove } = useStore();
+  const store = useStore();
+  const { ds, idx, save, remove } = store;
   const { t, lang } = useI18n();
   const router = useRouter();
   const existing = id ? idx.tripById.get(id) : undefined;
@@ -87,6 +89,17 @@ function TripEdit() {
     }
     setSaving(true);
     await save("trips", next);
+    // Attach conditions for the trip's own time & place when it is new or was moved.
+    const moved = !existing || existing.started_at !== next.started_at || existing.location_id !== next.location_id || existing.lat !== next.lat;
+    const startMs = Date.parse(next.started_at);
+    if (moved && !next.is_demo && startMs > Date.now() - 6 * 3_600_000)
+      void takeSnapshot(store, {
+        at: new Date(next.started_at),
+        tripId: next.id,
+        catchId: null,
+        purpose: startMs > Date.now() + 3_600_000 ? "planned" : "trip_start",
+        coords: coordsForTrip({ ...ds, trips: [...ds.trips.filter((x) => x.id !== next.id), next] }, next),
+      });
     const before = ds.trip_equipment.filter((x) => x.trip_id === next.id);
     const toRemove = before.filter((x) => !equip.includes(x.equipment_id));
     const toAdd = equip.filter((eid) => !before.some((x) => x.equipment_id === eid));

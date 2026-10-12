@@ -208,22 +208,13 @@ export function NewSpeciesForm({
 // ---------------------------------------------------------------------------
 // Locations
 // ---------------------------------------------------------------------------
-export function getGps(): Promise<{ lat: number; lng: number }> {
-  return new Promise((res, rej) => {
-    if (!("geolocation" in navigator)) return rej(new Error("NO_GPS"));
-    navigator.geolocation.getCurrentPosition(
-      (p) => res({ lat: Math.round(p.coords.latitude * 1e5) / 1e5, lng: Math.round(p.coords.longitude * 1e5) / 1e5 }),
-      (e) => rej(new Error(e.code === 1 ? "DENIED" : "UNAVAILABLE")),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    );
-  });
-}
+export { getGps } from "@/lib/gps";
 
 export function LocationPicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
   const { ds } = useStore();
   const { t } = useI18n();
   const [adding, setAdding] = useState(false);
-  const locs = [...ds.locations].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const locs = [...ds.locations].sort((a, b) => Number(!!b.is_favorite) - Number(!!a.is_favorite) || a.name.localeCompare(b.name, "ar"));
   return (
     <>
       <div className="flex gap-2">
@@ -235,6 +226,7 @@ export function LocationPicker({ value, onChange }: { value: string | null; onCh
           <option value="">{t("— اختر موقع الصيد —", "— Choose a spot —")}</option>
           {locs.map((l) => (
             <option key={l.id} value={l.id}>
+              {l.is_favorite ? "★ " : ""}
               {l.name}
               {l.area ? ` · ${l.area}` : ""}
             </option>
@@ -256,102 +248,8 @@ export function LocationPicker({ value, onChange }: { value: string | null; onCh
   );
 }
 
-export function LocationForm({ initial, onDone }: { initial?: Location; onDone: (id: string | null) => void }) {
-  const { ds, save } = useStore();
-  const { t } = useI18n();
-  const [nameV, setName] = useState(initial?.name ?? "");
-  const [area, setArea] = useState(initial?.area ?? "");
-  const [kind, setKind] = useState<Location["kind"]>(initial?.kind ?? "boat");
-  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(initial?.lat != null ? { lat: initial.lat, lng: initial.lng! } : null);
-  const [gpsErr, setGpsErr] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
-  const dup = ds.locations.find((l) => l.id !== initial?.id && normalizeName(l.name) === normalizeName(nameV));
-
-  const submit = async () => {
-    if (!nameV.trim() || dup) return;
-    const ts = new Date().toISOString();
-    const row: Location = {
-      id: initial?.id ?? uuid(),
-      name: nameV.trim(),
-      area: area.trim() || null,
-      lat: gps?.lat ?? null,
-      lng: gps?.lng ?? null,
-      kind,
-      notes: initial?.notes ?? null,
-      is_demo: initial?.is_demo ?? false,
-      created_at: initial?.created_at ?? ts,
-      updated_at: ts,
-    };
-    await save("locations", row);
-    onDone(row.id);
-  };
-
-  return (
-    <div className="space-y-3">
-      <Field label={t("اسم الموقع *", "Spot name *")} error={dup ? t("الاسم مستخدم مسبقاً", "Name already used") : null}>
-        <Input value={nameV} onChange={(e) => setName(e.target.value)} placeholder={t("مثال: ساحل الفنطاس", "e.g. Al-Fintas coast")} />
-      </Field>
-      <Field label={t("المنطقة", "Area")}>
-        <Input value={area} onChange={(e) => setArea(e.target.value)} />
-      </Field>
-      <Choice
-        value={kind}
-        allowClear={false}
-        onChange={(v) => v && setKind(v)}
-        options={[
-          { value: "boat", label: t("قارب", "Boat") },
-          { value: "shore", label: t("ساحل", "Shore") },
-          { value: "pier", label: t("جسر / رصيف", "Pier") },
-          { value: "other", label: t("أخرى", "Other") },
-        ]}
-      />
-      <div className="rounded-xl border border-line p-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 text-sm text-ink-2">
-            <MapPin className="size-4" />
-            {gps ? <span className="ltr">{gps.lat}, {gps.lng}</span> : t("بدون إحداثيات", "No coordinates")}
-          </span>
-          <div className="flex gap-1">
-            {gps && (
-              <Button size="sm" variant="ghost" onClick={() => setGps(null)}>
-                {t("إزالة", "Remove")}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              loading={locating}
-              onClick={async () => {
-                setGpsErr(null);
-                setLocating(true);
-                try {
-                  setGps(await getGps());
-                } catch (e) {
-                  setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Couldn't get location"));
-                } finally {
-                  setLocating(false);
-                }
-              }}
-            >
-              <LocateFixed className="size-4" /> {t("موقعي الحالي", "Use GPS")}
-            </Button>
-          </div>
-        </div>
-        <p className="mt-1 text-xs text-muted">
-          {gpsErr ?? t("اختياري — يُطلب الإذن فقط عند الضغط.", "Optional — permission is only requested when you tap.")}
-        </p>
-      </div>
-      <div className="flex gap-2">
-        <Button className="flex-1" onClick={submit} disabled={!nameV.trim() || !!dup}>
-          {t("حفظ", "Save")}
-        </Button>
-        <Button variant="ghost" onClick={() => onDone(null)}>
-          {t("إلغاء", "Cancel")}
-        </Button>
-      </div>
-    </div>
-  );
-}
+import { LocationForm } from "./LocationForm";
+export { LocationForm };
 
 // ---------------------------------------------------------------------------
 // Equipment (multi-select)

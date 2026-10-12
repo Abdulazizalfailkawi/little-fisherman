@@ -90,6 +90,11 @@ export function addDays(key: string, n: number): string {
   return dateKey(d);
 }
 
+/** Sunday that starts the Kuwait week containing `key`. */
+export function weekStartKey(key: string): string {
+  return addDays(key, -dateKeyToDate(key).getUTCDay());
+}
+
 export function todayKey(): string {
   return dateKey(new Date());
 }

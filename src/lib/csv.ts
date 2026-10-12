@@ -88,6 +88,11 @@ export function catchesCSV(ds: Dataset, idx: Index): string {
         c.line_type,
         c.pe_rating,
         c.lure_bait,
+        c.rod_reel ?? "",
+        c.leader ?? "",
+        c.hook ?? "",
+        c.lat ?? "",
+        c.lng ?? "",
         c.tide,
         c.moon_phase,
         c.released ? "released" : "kept",
@@ -98,7 +103,7 @@ export function catchesCSV(ds: Dataset, idx: Index): string {
     [
       "id", "trip_id", "trip_title", "caught_at_kuwait", "species_ar", "species_en", "scientific_name",
       "identification", "weight_kg", "weight_type", "length_cm", "length_type", "location", "depth_m",
-      "technique", "line_type", "pe_rating", "lure_bait", "tide", "moon_phase", "kept_released", "notes",
+      "technique", "line_type", "pe_rating", "lure_bait", "rod_reel", "leader", "hook", "lat", "lng", "tide", "moon_phase", "kept_released", "notes",
     ],
     rows,
   );

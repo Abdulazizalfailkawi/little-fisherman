@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { BarChart3, CalendarDays, Clock, Fish, Flame, Plus, Ruler, Sailboat, Scale, Target, Trophy } from "lucide-react";
+import { BarChart3, CalendarDays, Clock, Fish, Flame, Plus, Ruler, Sailboat, Scale, Target, Trophy, Waves } from "lucide-react";
 import { DualDate, Photo, TripCard } from "@/components/common";
 import { Badge, Card, Empty, LinkButton, PageHeader, Progress, SectionTitle, Stat, N } from "@/components/ui";
 import { evaluateAchievements, nextMilestone } from "@/lib/achievements";
@@ -65,10 +65,11 @@ export default function Dashboard() {
         </Card>
       ))}
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {[
           { href: "/trip/edit?start=1", icon: Sailboat, label: t("رحلة جديدة", "New trip") },
           { href: "/quick?fish=1", icon: Fish, label: t("سجّل سمكة", "Log fish") },
+          { href: "/marine", icon: Waves, label: t("البحر الآن", "Marine") },
           { href: "/collection", icon: Trophy, label: t("مجموعتي", "Collection") },
           { href: "/stats", icon: BarChart3, label: t("الإحصائيات", "Stats") },
           { href: "/calendar", icon: CalendarDays, label: t("التقويم", "Calendar") },
@@ -76,7 +77,7 @@ export default function Dashboard() {
           <Link
             key={a.href}
             href={a.href}
-            className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line/70 bg-surface/80 px-1 text-center text-[11px] text-ink-2 hover:bg-surface-2"
+            className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-line/70 bg-surface/80 px-1 text-center text-xs text-ink-2 hover:bg-surface-2"
           >
             <a.icon className="size-6 text-teal" />
             {a.label}

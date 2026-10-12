@@ -32,6 +32,8 @@ export function validateCatch(c: Catch, trip?: Trip): Errors {
   range(e, c, "depth_m", 0, 10999);
   range(e, c, "pe_rating", 0.1, 20);
   if (c.notes && c.notes.length > 5000) e.notes = "long";
+  if (c.hijri_date_override && !/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|30)$/.test(c.hijri_date_override)) e.hijri_date_override = "format";
+  if ((c.lat == null) !== (c.lng == null)) e.lat = "pair";
   // Soft sanity check: catch time should be within (or near) the trip.
   if (trip && c.caught_at) {
     const t = new Date(c.caught_at).getTime();

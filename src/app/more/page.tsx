@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, FileText, Images, MapPin, Search, Settings, Trophy, Medal, Wrench } from "lucide-react";
+import { BarChart3, BookOpen, CalendarDays, FileText, Fish, Images, MapPin, NotebookText, Search, Settings, Trophy, Medal, Waves, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
 
 export default function MorePage() {
   const { t } = useI18n();
   const items = [
+    { href: "/marine", icon: Waves, label: t("لوحة البحر", "Marine dashboard"), sub: t("الطقس، الموج، المد والجزر", "Weather, waves, tide") },
+    { href: "/collection", icon: Fish, label: t("مجموعتي", "My collection"), sub: t("الأنواع وصفحة كل نوع", "Species & per-species pages") },
+    { href: "/catches", icon: BookOpen, label: t("سجل الصيد", "Catch history"), sub: t("كل صيدة مع ملخصها وظروفها", "Every catch with summary & conditions") },
+    { href: "/reports", icon: NotebookText, label: t("تقارير أسبوعية وشهرية", "Weekly & monthly reports"), sub: t("ملخصات من سجلاتك الحقيقية", "Summaries from your real records") },
     { href: "/stats", icon: BarChart3, label: t("الإحصائيات والتحليلات", "Analytics"), sub: t("الأيام، الساعات، الطرق، القمر، المد", "Days, hours, techniques, moon, tide") },
     { href: "/calendar", icon: CalendarDays, label: t("التقويم الهجري والميلادي", "Hijri & Gregorian calendar"), sub: t("أيام الصيد والملخصات", "Fishing days & summaries") },
     { href: "/records", icon: Medal, label: t("الأرقام القياسية", "Personal records"), sub: t("الأثقل، الأطول، أفضل رحلة", "Heaviest, longest, best trip") },

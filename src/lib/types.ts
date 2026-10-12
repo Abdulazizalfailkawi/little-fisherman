@@ -82,6 +82,10 @@ export interface Species extends Timestamps {
 export interface Location extends Timestamps {
   id: string;
   name: string;
+  name_en?: string | null;
+  is_favorite?: boolean;
+  typical_depth_m?: number | null;
+  tide_station?: string | null;
   area: string | null;
   lat: number | null;
   lng: number | null;
@@ -186,6 +190,12 @@ export interface Catch extends Timestamps {
   ai_species_id: string | null;
   ai_suggestion: AiSuggestion | null;
   is_demo: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  rod_reel?: string | null;
+  leader?: string | null;
+  hook?: string | null;
+  hijri_date_override?: string | null;
 }
 
 export interface TripEquipment {
@@ -196,6 +206,12 @@ export interface TripEquipment {
 export interface CatchEquipment {
   catch_id: string;
   equipment_id: string;
+  created_at: ISO;
+}
+export interface CatchMedia {
+  catch_id: string;
+  media_id: string;
+  sort_order: number;
   created_at: ISO;
 }
 export interface TripMedia {
@@ -225,7 +241,18 @@ export interface UserAchievement {
   created_at: ISO;
 }
 
-export type EnvKind = "observation" | "forecast" | "model" | "calculated";
+export type EnvKind =
+  | "observation"
+  | "forecast"
+  | "model"
+  | "archived_forecast"
+  | "reanalysis"
+  | "calculated"
+  | "manual"
+  | "unavailable";
+export type EnvPurpose = "legacy" | "planned" | "trip_start" | "catch" | "manual" | "refresh";
+export type EnvCategory = "weather" | "marine" | "tide" | "astronomy" | "status";
+export type EnvValue = number | string | boolean | null | EnvValue[] | { [k: string]: EnvValue };
 export interface EnvironmentObservation extends Timestamps {
   id: string;
   trip_id: string;
@@ -236,7 +263,11 @@ export interface EnvironmentObservation extends Timestamps {
   fetched_at: ISO;
   lat: number | null;
   lng: number | null;
-  data: Record<string, number | string | null>;
+  data: Record<string, EnvValue>;
+  snapshot_id?: string | null;
+  purpose?: EnvPurpose;
+  category?: EnvCategory;
+  method?: string | null;
 }
 
 export interface Profile {
@@ -258,6 +289,7 @@ export interface Tables {
   trip_equipment: TripEquipment;
   catch_equipment: CatchEquipment;
   trip_media: TripMedia;
+  catch_media: CatchMedia;
   goals: Goal;
   user_achievements: UserAchievement;
   environment_observations: EnvironmentObservation;
@@ -279,6 +311,7 @@ export const TABLE_ORDER: TableName[] = [
   "trip_equipment",
   "catch_equipment",
   "trip_media",
+  "catch_media",
   "goals",
   "user_achievements",
   "environment_observations",
@@ -296,6 +329,7 @@ export const TABLE_KEYS: Record<TableName, string[]> = {
   trip_equipment: ["trip_id", "equipment_id"],
   catch_equipment: ["catch_id", "equipment_id"],
   trip_media: ["trip_id", "media_id"],
+  catch_media: ["catch_id", "media_id"],
   goals: ["id"],
   user_achievements: ["achievement_code"],
   environment_observations: ["id"],
@@ -322,6 +356,7 @@ export interface Dataset {
   trip_equipment: TripEquipment[];
   catch_equipment: CatchEquipment[];
   trip_media: TripMedia[];
+  catch_media: CatchMedia[];
   goals: Goal[];
   user_achievements: UserAchievement[];
   environment_observations: EnvironmentObservation[];
@@ -339,6 +374,7 @@ export function emptyDataset(): Dataset {
     trip_equipment: [],
     catch_equipment: [],
     trip_media: [],
+    catch_media: [],
     goals: [],
     user_achievements: [],
     environment_observations: [],

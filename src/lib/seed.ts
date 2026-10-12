@@ -30,10 +30,10 @@ export const SEED_SPECIES: SeedSpecies[] = [
   },
   {
     name_ar: "بالول",
-    name_en: "Balool (grouper)",
+    name_en: "Balool",
     scientific_name: null,
     family: "Serranidae",
-    aliases: ["Balool", "Baloul", "بلول"],
+    aliases: ["Baloul", "بلول", "Balool grouper"],
     notes:
       "Local name. Please confirm the exact species and add the scientific name if you know it. / اسم محلي — أكّد النوع وأضف الاسم العلمي إذا كان معروفاً.",
   },

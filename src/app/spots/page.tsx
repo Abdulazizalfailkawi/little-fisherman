@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MapPin, Plus, Trash2 } from "lucide-react";
 import { LocationForm } from "@/components/pickers";
@@ -11,7 +12,7 @@ import type { Location } from "@/lib/types";
 
 export default function SpotsPage() {
   const { ds, idx, remove } = useStore();
-  const { t, num } = useI18n();
+  const { t, num, lang } = useI18n();
   const [edit, setEdit] = useState<Location | "new" | null>(null);
   const stats = useMemo(() => new Map(byLocation(tripRows(ds, idx)).groups.map((g) => [g.key, g])), [ds, idx]);
 
@@ -31,21 +32,22 @@ export default function SpotsPage() {
       ) : (
         <div className="space-y-2">
           {[...ds.locations]
-            .sort((a, b) => (stats.get(b.id)?.trips ?? 0) - (stats.get(a.id)?.trips ?? 0))
+            .sort((a, b) => Number(!!b.is_favorite) - Number(!!a.is_favorite) || (stats.get(b.id)?.trips ?? 0) - (stats.get(a.id)?.trips ?? 0))
             .map((l) => {
               const s = stats.get(l.id);
               return (
-                <button key={l.id} className="w-full text-start" onClick={() => setEdit(l)}>
+                <Link key={l.id} className="block w-full text-start" href={`/spot?id=${l.id}`}>
                   <Card className="flex items-center gap-3 hover:bg-surface-2">
                     <div className="grid size-12 place-items-center rounded-xl bg-surface-2">
                       <MapPin className="size-6 text-teal" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 font-semibold">
-                        {l.name} {l.is_demo && <Badge tone="ocean">{t("تجريبي", "Demo")}</Badge>}
+                        {l.is_favorite && <span className="text-warn">★</span>}
+                        {lang === "ar" ? l.name : l.name_en || l.name} {l.is_demo && <Badge tone="ocean">{t("تجريبي", "Demo")}</Badge>}
                       </div>
                       <div className="text-xs text-muted">
-                        {l.area ?? ""} {l.lat != null && <span className="ltr">· {l.lat}, {l.lng}</span>}
+                        {l.area ?? ""} {l.lat == null && <span className="text-warn">· {t("بدون إحداثيات", "no coordinates")}</span>}
                       </div>
                       {s && (
                         <div className="text-xs text-ink-2">
@@ -54,7 +56,7 @@ export default function SpotsPage() {
                       )}
                     </div>
                   </Card>
-                </button>
+                </Link>
               );
             })}
         </div>
