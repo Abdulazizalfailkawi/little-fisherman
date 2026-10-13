@@ -62,7 +62,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     return (
       <div className="grid min-h-dvh place-items-center">
         <div className="flex flex-col items-center gap-3 text-muted">
-          <div className="text-5xl">🎣</div>
+          <img src="/icons/sajji-mark.svg" alt="" className="size-24" />
           <div className="text-sm">…</div>
         </div>
       </div>

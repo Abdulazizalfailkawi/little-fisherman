@@ -11,13 +11,16 @@ const plex = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "الصياد الصغير · Fishing Journal",
+  title: "سجي · SAJJI",
   description: "سجل رحلات الصيد ومجموعة الأسماك — Personal fishing journal for Kuwait",
   manifest: "/manifest.webmanifest",
-  applicationName: "الصياد الصغير",
-  appleWebApp: { capable: true, title: "الصياد الصغير", statusBarStyle: "black-translucent" },
+  applicationName: "سجي",
+  appleWebApp: { capable: true, title: "سجي", statusBarStyle: "black-translucent" },
   icons: {
-    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
   formatDetection: { telephone: false },

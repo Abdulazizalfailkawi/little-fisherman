@@ -66,8 +66,9 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-5 py-10">
       <div className="text-center">
-        <div className="text-6xl">🎣</div>
-        <h1 className="mt-3 text-3xl font-bold">{t("الصياد الصغير", "Little Fisherman")}</h1>
+        <img src="/icons/sajji-mark.svg" alt="" className="mx-auto size-36" />
+        <h1 className="mt-1 text-4xl font-extrabold">{t("سجي", "SAJJI")}</h1>
+        <div className="mt-1 text-sm font-semibold tracking-[0.35em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
         <p className="mt-1 text-muted">{t("سجل رحلاتك، مجموعتك، وأرقامك القياسية", "Your trips, your collection, your records")}</p>
         <button className="mt-3 text-sm text-teal underline-offset-4 hover:underline" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>
           {lang === "ar" ? "English" : "العربية"}

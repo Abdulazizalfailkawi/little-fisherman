@@ -1,4 +1,4 @@
-# الصياد الصغير · Little Fisherman
+# سجي · SAJJI
 
 Personal fishing journal for Kuwait — trips, catches, AI fish ID, a species
 collection, Hijri + Gregorian calendar, analytics, records, achievements,

@@ -7,13 +7,13 @@
  * - API calls, Supabase and other origins: never cached here. Offline data
  *   lives in IndexedDB and is synchronised by the app itself.
  */
-const CACHE = "ft-shell-v3";
+const CACHE = "ft-shell-v4";
 const ROUTES = [
   "/", "/login", "/quick", "/trips", "/trip", "/trip/edit", "/catch", "/catch/edit", "/collection", "/species",
   "/calendar", "/stats", "/records", "/achievements", "/equipment", "/spots", "/search", "/gallery", "/report",
   "/settings", "/more", "/marine", "/catches", "/reports", "/spot", "/analytics",
 ];
-const EXTRA = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/apple-touch-icon.png"];
+const EXTRA = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/apple-touch-icon.png", "/icons/sajji-mark.svg"];
 
 async function cacheAssetsFromHtml(cache, html) {
   const urls = new Set();
