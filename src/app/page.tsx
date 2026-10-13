@@ -212,7 +212,7 @@ export default function MarineHome() {
   return (
     <>
       {/* Header */}
-      <header className="no-print mb-3 pb-1 pt-[calc(var(--safe-top)+0.75rem)]">
+      <header className="no-print mb-3 pb-1 pt-[calc(var(--safe-top)+3.25rem)]">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex justify-start">
             <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
