@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, MapPinPlus, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
 import { LocationForm } from "@/components/LocationForm";
 import { TideChart } from "@/components/TideChart";
@@ -31,6 +31,7 @@ import { normalizeName } from "@/lib/normalize";
 import { uuid } from "@/lib/ids";
 import { isActiveStatus } from "@/lib/types";
 import { useIsAdmin } from "@/lib/admin";
+import { SaveSpotSheet } from "@/components/SaveSpotSheet";
 import { PushSettings } from "@/components/PushSettings";
 
 const H = 3_600_000;
@@ -95,6 +96,7 @@ export default function MarineHome() {
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [markOpen, setMarkOpen] = useState(false);
   const [open1, setOpen1] = useState(false);
   const [dayOff, setDayOff] = useState(0);
   const [open2, setOpen2] = useState(false);
@@ -288,6 +290,14 @@ export default function MarineHome() {
               <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
           </div>
+          <button
+            type="button"
+            aria-label={t("علّم هنا", "Mark here")}
+            onClick={() => setMarkOpen(true)}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-ocean/50 bg-ocean/15 px-3 text-sm font-bold text-white"
+          >
+            <MapPinPlus className="size-4 text-ocean" /> {t("علّم هنا", "Mark here")}
+          </button>
           <button
             aria-label="GPS"
             onClick={async () => {
@@ -824,6 +834,7 @@ export default function MarineHome() {
           </Link>
         </div>
       </Sheet>
+      <SaveSpotSheet open={markOpen} onClose={() => setMarkOpen(false)} />
       <Sheet open={addOpen} onClose={() => setAddOpen(false)} title={t("موقع جديد", "New spot")}>
         <LocationForm
           onDone={(id) => {
