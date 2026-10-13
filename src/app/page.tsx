@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
+import { LocationForm } from "@/components/LocationForm";
 import { ManualTideForm, readManualTide } from "@/components/ManualTide";
 import { TideChart } from "@/components/TideChart";
 import { Badge, Button, Card, Empty, LinkButton, Notice, Sheet, Spinner, cn } from "@/components/ui";
@@ -19,11 +20,14 @@ import { fmtHijri, toHijri } from "@/lib/hijri";
 import { useNow } from "@/lib/hooks/useNow";
 import { MOON_LABEL, useI18n } from "@/lib/i18n";
 import { getConditions, hazards, hourAt, turnsOf, type ConditionsResult } from "@/lib/marine/client";
+import { PRESET_SPOTS, presetRank } from "@/lib/marine/presets";
 import { KMC_MARINE_URL } from "@/lib/marine/stations";
 import { compass, fmtWind, readWindUnit, type WindUnit } from "@/lib/marine/units";
 import { tideState, turningPointsFromEvents, type TurnEvent } from "@/lib/marine/waqfa";
 import { CYCLE_LABEL, cycleInfo, readCycleConfig } from "@/lib/tidecycle";
 import { dateKey, fmtDate, fmtDateTime, fmtTime } from "@/lib/time";
+import { normalizeName } from "@/lib/normalize";
+import { uuid } from "@/lib/ids";
 import { isActiveStatus } from "@/lib/types";
 
 const H = 3_600_000;
@@ -60,7 +64,7 @@ function Tile({ icon, title, tone, aside, hint, open, onToggle, className, child
 
 export default function MarineHome() {
   const store = useStore();
-  const { ds, idx, online, hijriOffset } = store;
+  const { ds, idx, online, hijriOffset, ready, save } = store;
   const { t, lang } = useI18n();
   const now = useNow(1000);
   const [unit, setUnit] = useState<WindUnit>("kn");
@@ -71,14 +75,60 @@ export default function MarineHome() {
   const [sel, setSel] = useState<number | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualRev, setManualRev] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
   const [open1, setOpen1] = useState(false);
   const [open2, setOpen2] = useState(false);
   const [gpsErr, setGpsErr] = useState<string | null>(null);
 
   const spots = useMemo(
-    () => ds.locations.filter((l) => l.lat != null && l.lng != null).sort((a, b) => Number(!!b.is_favorite) - Number(!!a.is_favorite) || a.name.localeCompare(b.name, "ar")),
+    () =>
+      ds.locations
+        .filter((l) => l.lat != null && l.lng != null)
+        .sort((a, b) => {
+          const ra = presetRank(a.name);
+          const rb = presetRank(b.name);
+          if (ra >= 0 || rb >= 0) return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb);
+          return Number(!!b.is_favorite) - Number(!!a.is_favorite) || a.name.localeCompare(b.name, "ar");
+        }),
     [ds.locations],
   );
+
+  // The four main areas are added once per device; an existing spot with the
+  // same name is never overwritten or duplicated.
+  useEffect(() => {
+    if (!ready) return;
+    let done = false;
+    try {
+      done = localStorage.getItem("ft.presetSpots") === "1";
+    } catch {}
+    if (done) return;
+    try {
+      localStorage.setItem("ft.presetSpots", "1");
+    } catch {}
+    const have = new Set(ds.locations.map((l) => normalizeName(l.name)));
+    const ts = new Date().toISOString();
+    void (async () => {
+      for (const p of PRESET_SPOTS) {
+        if (have.has(normalizeName(p.name))) continue;
+        await save("locations", {
+          id: uuid(),
+          name: p.name,
+          name_en: p.name_en,
+          area: "الكويت",
+          lat: p.lat,
+          lng: p.lng,
+          kind: "boat",
+          notes: null,
+          typical_depth_m: null,
+          tide_station: "model",
+          is_favorite: false,
+          is_demo: false,
+          created_at: ts,
+          updated_at: ts,
+        });
+      }
+    })();
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setUnit(readWindUnit()), []);
   useEffect(() => {
     if (spotId || !spots.length) return;
@@ -164,6 +214,10 @@ export default function MarineHome() {
                 value={gpsPt ? "__gps" : spotId ?? ""}
                 onChange={(e) => {
                   if (e.target.value === "__gps") return;
+                  if (e.target.value === "__add") {
+                    setAddOpen(true);
+                    return;
+                  }
                   setGpsPt(null);
                   setSpotId(e.target.value);
                   setSel(null);
@@ -174,13 +228,14 @@ export default function MarineHome() {
                 className="w-full appearance-none truncate bg-transparent pe-6 text-xl font-bold focus:outline-none"
               >
                 {gpsPt && <option value="__gps">{t("موقعي (GPS)", "My location (GPS)")}</option>}
-                {!spots.length && <option value="">{t("لا يوجد موقع", "No spot")}</option>}
+                {!spots.length && <option value="">{t("اختر موقعاً", "Choose a spot")}</option>}
                 {spots.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.is_favorite ? "★ " : ""}
                     {lang === "ar" ? s.name : s.name_en || s.name}
                   </option>
                 ))}
+                <option value="__add">{t("＋ إضافة موقع جديد…", "+ Add a new spot…")}</option>
               </select>
               <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
@@ -458,6 +513,9 @@ export default function MarineHome() {
                   </div>
                 )}
                 <p className="text-[11px] text-muted">
+                  {t("ارتفاع الموج من نموذج بحري بدقة ~٨ كم، وقد يقلّل الموج قرب الساحل الضحل في شمال الخليج؛ قارنه بالنشرة الرسمية قبل الخروج.", "Wave height comes from an ocean model at ~8 km resolution and can under-estimate waves near the shallow northern Gulf coast; compare with the official bulletin before going out.")}
+                </p>
+                <p className="text-[11px] text-muted">
                   {t("التصنيف: هادئ، متوسط، أو شديد حسب الرياح (٢٠ و٣٧ كم/س) والموج (٠٫٦ و١٫٥ م). هذا تقدير مبسّط وليس نشرة رسمية.", "Calm / moderate / rough from wind (20 and 37 km/h) and waves (0.6 and 1.5 m). A simple estimate, not an official bulletin.")}
                 </p>
                 <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-teal underline">
@@ -575,6 +633,21 @@ export default function MarineHome() {
         </>
       )}
 
+      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title={t("موقع جديد", "New spot")}>
+        <LocationForm
+          onDone={(id) => {
+            setAddOpen(false);
+            if (id) {
+              setGpsPt(null);
+              setSpotId(id);
+              setSel(null);
+              try {
+                localStorage.setItem("ft.marineSpot", id);
+              } catch {}
+            }
+          }}
+        />
+      </Sheet>
       <Sheet open={manualOpen} onClose={() => setManualOpen(false)} title={t("أوقات المد الرسمية — اليوم", "Official tide times — today")}>
         {spotId && (
           <ManualTideForm
