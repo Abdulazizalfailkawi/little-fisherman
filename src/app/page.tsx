@@ -168,6 +168,8 @@ export default function MarineHome() {
   const model = useMemo(() => (c ? turnsOf(c) : { pts: [], turns: [] as TurnEvent[] }), [c]);
   const usingManual = false;
   const turns = model.turns;
+  const dayStart = Date.parse(`${today}T00:00:00+03:00`);
+  const dayTurns = turns.filter((x) => x.t >= dayStart && x.t < dayStart + 24 * H);
   const st = tideState(usingManual ? [] : model.pts, turns, now);
   const stale = !!res?.savedAt && now - res.savedAt > STALE_MS;
   const fetchedAge = c ? now - Date.parse(c.fetched_at) : 0;
@@ -375,26 +377,39 @@ export default function MarineHome() {
             ) : (
               <div className="text-sm text-muted">{t("بيانات المد غير متوفرة", "Tide data unavailable")}</div>
             )}
-            {st.nextHigh || st.nextLow ? (
+            {turns.length ? (
               <div className="mt-3 grid grid-cols-2 gap-2">
-                {[
-                  { e: st.nextHigh, l: t("أعلى مد", "High tide"), cls: "text-rise", Icon: ArrowUp },
-                  { e: st.nextLow, l: t("أدنى جزر", "Low tide"), cls: "text-fall", Icon: ArrowDown },
-                ].map(({ e, l, cls, Icon }) => (
-                  <div key={l} className="rounded-xl bg-surface-2 px-3 py-2">
-                    <div className={cn("flex items-center gap-1 text-[11px]", cls)}>
-                      <Icon className="size-3" /> {l}
+                {([
+                  { type: "high" as const, l: t("أعلى مد", "High tide"), cls: "text-rise", Icon: ArrowUp },
+                  { type: "low" as const, l: t("أدنى جزر", "Low tide"), cls: "text-fall", Icon: ArrowDown },
+                ]).map(({ type, l, cls, Icon }) => {
+                  const list = dayTurns.filter((x) => x.type === type);
+                  const nextT = st.turn && st.turn.type === type ? st.turn.t : (type === "high" ? st.nextHigh : st.nextLow)?.t;
+                  const nth = (i: number) => (list.length > 1 ? [t("الأول", "1st"), t("الثاني", "2nd"), t("الثالث", "3rd")][i] ?? "" : "");
+                  return (
+                    <div key={type} className="rounded-xl bg-surface-2 px-3 py-2">
+                      <div className={cn("flex items-center gap-1 text-[11px]", cls)}>
+                        <Icon className="size-3" /> {l} <span className="text-muted">· {t("اليوم", "today")}</span>
+                      </div>
+                      {list.length ? (
+                        list.map((e, i) => {
+                          const past = e.t < now;
+                          return (
+                            <div key={e.t} className={cn("mt-1.5", past && "opacity-50")}>
+                              <div className="whitespace-nowrap text-lg font-bold leading-tight">{fmtTime(e.t, lang)}</div>
+                              <div className={cn("text-[11px] leading-tight", !past && e.t === nextT ? "font-semibold text-white" : "text-ink-2")}>
+                                {nth(i)} {nth(i) ? "· " : ""}
+                                {past ? t("مضى", "passed") : remain(e.t - now, lang)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-sm text-muted">—</div>
+                      )}
                     </div>
-                    {e ? (
-                      <>
-                        <div className="text-lg font-bold">{fmtTime(e.t, lang)}</div>
-                        <div className="text-[11px] text-ink-2">{remain(e.t - now, lang)}</div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-muted">—</div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
             {open1 && (
