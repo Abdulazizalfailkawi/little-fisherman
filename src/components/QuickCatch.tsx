@@ -7,8 +7,9 @@
 
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
-import { Camera, Loader2, Plus, X } from "lucide-react";
+import { Camera, Loader2, LocateFixed, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/db/store";
+import { getGps } from "@/lib/gps";
 import { newCatch } from "@/lib/factory";
 import { uuid } from "@/lib/ids";
 import { useI18n } from "@/lib/i18n";
@@ -18,6 +19,12 @@ import { isActiveStatus, type Species } from "@/lib/types";
 import { Photo } from "./common";
 import { useToast } from "./Toast";
 import { Button, Field, Input, Notice, Select, Sheet, cn } from "./ui";
+
+function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const r = Math.PI / 180;
+  const h = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
 
 const HIDDEN = ["/catch/edit", "/trip/edit", "/login"];
 
@@ -34,6 +41,8 @@ export function QuickCatch() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [fish, setFish] = useState("");
   const [loc, setLoc] = useState<string | null>(null);
+  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsBusy, setGpsBusy] = useState(false);
   if (HIDDEN.some((p) => path.startsWith(p))) return null;
 
   const active = ds.trips.find((x) => isActiveStatus(x.status)) ?? null;
@@ -54,6 +63,7 @@ export function QuickCatch() {
     setLoc(active?.location_id ?? (spot && idx.locById.has(spot) ? spot : null));
     setFish("");
     setPhoto(null);
+    setGps(null);
     setErr(null);
     setOpen(true);
   };
@@ -70,6 +80,21 @@ export function QuickCatch() {
     } finally {
       setBusy(false);
       if (cam.current) cam.current.value = "";
+    }
+  };
+
+  const locate = async () => {
+    setGpsBusy(true);
+    setErr(null);
+    try {
+      const pt = await getGps();
+      setGps(pt);
+      const near = spots.map((l) => ({ l, d: km(pt, { lat: l.lat!, lng: l.lng! }) })).sort((a, b) => a.d - b.d)[0];
+      if (near && near.d <= 5) setLoc(near.l.id);
+    } catch (e) {
+      setErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع — اختر المكان من القائمة", "Location permission denied — pick a spot from the list") : t("تعذر تحديد موقعك — اختر المكان من القائمة", "Couldn't get your location — pick a spot from the list"));
+    } finally {
+      setGpsBusy(false);
     }
   };
 
@@ -94,6 +119,8 @@ export function QuickCatch() {
         species_id: speciesId,
         identification_status: speciesId ? "manual" : "unidentified",
         location_id: loc,
+        lat: gps?.lat ?? null,
+        lng: gps?.lng ?? null,
         technique_id: active?.technique_id ?? null,
       });
       await save("catches", c);
@@ -148,6 +175,15 @@ export function QuickCatch() {
               ))}
             </datalist>
           </Field>
+          <Select
+            value={null}
+            onChange={(id) => {
+              const sp = id ? idx.speciesById.get(id) : null;
+              if (sp) setFish(sp.name_ar);
+            }}
+            placeholder={t("أو اختر من قائمة الأنواع…", "Or pick from the species list…")}
+            options={[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) }))}
+          />
           {quick.length > 0 && (
             <div className="-mt-2 flex flex-wrap gap-1.5">
               {quick.map((id) => {
@@ -163,8 +199,13 @@ export function QuickCatch() {
             </div>
           )}
 
-          <Field label={t("الموقع", "Spot")}>
-            <Select value={loc} onChange={setLoc} placeholder={t("بدون موقع", "No spot")} options={spots.map((l) => ({ value: l.id, label: lang === "ar" ? l.name : l.name_en || l.name }))} />
+          <Field label={t("الموقع", "Location")}>
+            <div className="space-y-2">
+              <Button type="button" variant="secondary" loading={gpsBusy} onClick={locate} className="w-full">
+                <LocateFixed className="size-5" /> {gps ? t("✓ تم تحديد موقعي الحالي — تحديث", "✓ Current location set — refresh") : t("استخدم موقعي الحالي (GPS)", "Use my current location (GPS)")}
+              </Button>
+              <Select value={loc} onChange={setLoc} placeholder={t("أو اختر المكان من القائمة", "Or pick a spot from the list")} options={spots.map((l) => ({ value: l.id, label: lang === "ar" ? l.name : l.name_en || l.name }))} />
+            </div>
           </Field>
 
           <Notice tone="info">
