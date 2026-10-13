@@ -24,7 +24,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast && (
         <div role="status" className="no-print pointer-events-none fixed inset-x-0 top-[calc(var(--safe-top)+0.75rem)] z-[60] flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-good/40 bg-surface px-4 py-3 text-sm font-medium shadow-2xl">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-good/40 bg-[#0a1220] px-4 py-3 text-sm font-medium shadow-2xl">
             <CheckCircle2 className="size-5 shrink-0 text-good" /> <span>{toast.msg}</span>
             {toast.action && (
               <Link href={toast.action.href} className="shrink-0 rounded-lg bg-teal/15 px-2.5 py-1 text-teal" onClick={() => setToast(null)}>

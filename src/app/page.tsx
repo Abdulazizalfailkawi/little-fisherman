@@ -449,18 +449,18 @@ export default function MarineHome() {
             aside={<span className={cn("rounded-full px-2.5 py-0.5 text-sm font-bold", seaLevel === "rough" ? "bg-fall/15 text-fall" : seaLevel === "moderate" ? "bg-warn/15 text-warn" : seaLevel === "calm" ? "bg-rise/15 text-rise" : "bg-surface-2 text-muted")}>{seaLabel}</span>}
           >
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-surface-2 px-2 py-2">
-                <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
+              <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
+                <div className="flex items-center justify-center gap-1 text-[11px] font-medium text-ocean">
                   <Wind className="size-3" /> {t("الرياح", "Wind")}
                 </div>
-                <div className="text-base font-bold">{wx?.wind != null ? fmtWind(wx.wind, unit, lang) : "—"}</div>
-                <div className="text-[11px] text-ink-2">{wx?.wind != null ? compass(wx.dir, lang) : ""}</div>
+                <div className="text-lg font-extrabold text-ocean">{wx?.wind != null ? fmtWind(wx.wind, unit, lang) : "—"}</div>
+                <div className="text-[11px] text-ink">{wx?.wind != null ? compass(wx.dir, lang) : ""}</div>
               </div>
-              <div className="rounded-xl bg-surface-2 px-2 py-2">
-                <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
+              <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
+                <div className="flex items-center justify-center gap-1 text-[11px] font-medium text-ocean">
                   <Waves className="size-3" /> {t("الموج", "Waves")}
                 </div>
-                <div className="text-base font-bold">
+                <div className="text-lg font-extrabold text-ocean">
                   {m?.wave_h != null ? (
                     <bdi>
                       {m.wave_h} {t("م", "m")}
@@ -469,16 +469,16 @@ export default function MarineHome() {
                     "—"
                   )}
                 </div>
-                <div className="text-[11px] text-ink-2">{m?.wave_dir != null ? compass(m.wave_dir, lang) : ""}</div>
+                <div className="text-[11px] text-ink">{m?.wave_dir != null ? compass(m.wave_dir, lang) : ""}</div>
               </div>
-              <div className="rounded-xl bg-surface-2 px-2 py-2">
-                <div className="text-[11px] text-muted">{t("حرارة الماء", "Water")}</div>
-                <div className="text-base font-bold">{m?.sst != null ? `${m.sst}°` : "—"}</div>
-                <div className="text-[11px] text-ink-2">{wx?.temp != null ? `${t("الجو", "Air")} ${wx.temp}°` : ""}</div>
+              <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
+                <div className="text-[11px] font-medium text-ocean">{t("حرارة الماء", "Water")}</div>
+                <div className="text-lg font-extrabold text-ocean">{m?.sst != null ? `${m.sst}°` : "—"}</div>
+                <div className="text-[11px] text-ink">{wx?.temp != null ? <>{t("الجو", "Air")} <bdi>{wx.temp}°</bdi></> : ""}</div>
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2 text-sm">
-              <span className="text-[11px] text-muted">{t("دورة اليوم", "Today's cycle")}</span>
+              <span className="text-[11px] font-medium text-ocean">{t("دورة اليوم", "Today's cycle")}</span>
               <span className={cn("font-bold", cyc.cycle === "hamal" ? "text-ocean" : cyc.cycle === "fasad" ? "text-warn" : "text-ink-2")}>
                 {t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}
               </span>

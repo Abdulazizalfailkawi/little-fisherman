@@ -33,7 +33,7 @@ export function Bars({ data, height = 180, format = (v: number) => String(Math.r
               if (!active || !payload?.length) return null;
               const d = payload[0].payload as BarDatum & { v: number };
               return (
-                <div className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink shadow-xl" dir={dir}>
+                <div className="rounded-lg border border-line bg-[#0a1220] px-2.5 py-1.5 text-xs text-ink shadow-xl" dir={dir}>
                   <div className="font-semibold">{d.label}</div>
                   <div>{d.value == null ? "—" : format(d.value)}</div>
                   {d.detail && <div className="text-muted">{d.detail}</div>}

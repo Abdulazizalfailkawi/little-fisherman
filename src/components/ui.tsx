@@ -85,7 +85,7 @@ export function LinkButton({
 // ---------------------------------------------------------------------------
 export function Card({ className, children, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div {...rest} className={cn("print-card rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4", className)}>
+    <div {...rest} className={cn("print-card rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4 backdrop-blur-md", className)}>
       {children}
     </div>
   );
@@ -364,7 +364,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div
         ref={ref}
-        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-surface p-4 pb-[calc(var(--safe-bottom)+1rem)] sm:rounded-3xl"
+        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-[#0a1220] p-4 pb-[calc(var(--safe-bottom)+1rem)] sm:rounded-3xl"
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-lg font-bold">{title}</h3>
