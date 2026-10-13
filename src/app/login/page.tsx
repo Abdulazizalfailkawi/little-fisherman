@@ -45,7 +45,8 @@ export default function LoginPage() {
         if (error) throw error;
       }
       await onSignedIn();
-      router.replace("/");
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
     } catch (err) {
       const m = String((err as Error).message ?? err);
       setMsg({

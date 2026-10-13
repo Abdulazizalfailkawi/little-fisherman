@@ -4,7 +4,7 @@
 // are created as catches linked to the trip when the trip is saved.
 
 import { useRef, useState } from "react";
-import { Camera, Plus, X } from "lucide-react";
+import { Camera, ImagePlus, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import type { Trip } from "@/lib/types";
@@ -22,6 +22,7 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
   const { ds, idx, addPhoto } = useStore();
   const { t, name } = useI18n();
   const cam = useRef<HTMLInputElement>(null);
+  const lib = useRef<HTMLInputElement>(null);
   const [fishId, setFishId] = useState<string | null>(null);
   const [fish, setFish] = useState("");
   const [weight, setWeight] = useState<number | null>(null);
@@ -90,26 +91,41 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
           <div className="flex-1">
             <NumberInput value={weight} onChange={setWeight} />
           </div>
-          <button type="button" aria-label="photo" onClick={() => cam.current?.click()} className="grid size-12 shrink-0 place-items-center rounded-xl border border-line bg-surface-2">
-            {photo ? <Photo mediaId={photo} className="size-10 rounded-lg" /> : <Camera className="size-5" />}
-          </button>
-          <input
-            ref={cam}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              setBusy(true);
-              try {
-                setPhoto((await addPhoto(f)).id);
-              } catch {}
-              setBusy(false);
-              if (cam.current) cam.current.value = "";
-            }}
-          />
+          {photo ? (
+            <button type="button" aria-label="remove photo" onClick={() => setPhoto(null)} className="grid size-12 shrink-0 place-items-center rounded-xl border border-line bg-surface-2">
+              <Photo mediaId={photo} className="size-10 rounded-lg" />
+            </button>
+          ) : (
+            <>
+              <button type="button" aria-label={t("تصوير", "Take photo")} onClick={() => cam.current?.click()} className="grid size-12 shrink-0 place-items-center rounded-xl border border-line bg-surface-2">
+                <Camera className="size-5" />
+              </button>
+              <button type="button" aria-label={t("من الألبوم", "From album")} onClick={() => lib.current?.click()} className="grid size-12 shrink-0 place-items-center rounded-xl border border-line bg-surface-2">
+                <ImagePlus className="size-5" />
+              </button>
+            </>
+          )}
+          {[cam, lib].map((r, i) => (
+            <input
+              key={i}
+              ref={r}
+              type="file"
+              accept="image/*"
+              {...(i === 0 ? { capture: "environment" as const } : {})}
+              hidden
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setBusy(true);
+                try {
+                  setPhoto((await addPhoto(f)).id);
+                } catch {}
+                setBusy(false);
+                if (cam.current) cam.current.value = "";
+                if (lib.current) lib.current.value = "";
+              }}
+            />
+          ))}
         </div>
         {fishId === "__new" && <Input value={fish} onChange={(e) => setFish(e.target.value)} placeholder={t("اكتب اسم السمكة", "Type the fish name")} autoComplete="off" />}
         <Button type="button" className="w-full" loading={busy} onClick={add}>

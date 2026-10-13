@@ -7,7 +7,7 @@
 
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
-import { Camera, Loader2, LocateFixed, X } from "lucide-react";
+import { Camera, ImagePlus, Loader2, LocateFixed, X } from "lucide-react";
 import { useStore } from "@/lib/db/store";
 import { newCatch } from "@/lib/factory";
 import { getGps } from "@/lib/gps";
@@ -35,6 +35,7 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
   const { t, lang, name } = useI18n();
   const toast = useToast();
   const cam = useRef<HTMLInputElement>(null);
+  const lib = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
     } finally {
       setBusy(false);
       if (cam.current) cam.current.value = "";
+      if (lib.current) lib.current.value = "";
     }
   };
 
@@ -164,11 +166,17 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
               </button>
             </div>
           ) : (
-            <Button type="button" size="lg" variant="secondary" loading={busy} onClick={() => cam.current?.click()} className="min-h-24 w-full flex-col">
-              <Camera className="size-7" /> {t("صوّر السمكة", "Photograph the fish")}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" size="lg" variant="secondary" loading={busy} onClick={() => cam.current?.click()} className="min-h-24 flex-col">
+                <Camera className="size-7" /> {t("تصوير", "Take photo")}
+              </Button>
+              <Button type="button" size="lg" variant="secondary" loading={busy} onClick={() => lib.current?.click()} className="min-h-24 flex-col">
+                <ImagePlus className="size-7" /> {t("من الألبوم", "From album")}
+              </Button>
+            </div>
           )}
           <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onFile(e.target.files)} />
+          <input ref={lib} type="file" accept="image/*" hidden onChange={(e) => onFile(e.target.files)} />
         </div>
 
         <Field label={t("نوع السمكة", "Fish")}>

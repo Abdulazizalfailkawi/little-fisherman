@@ -48,7 +48,7 @@ export default function ProfilePage() {
     <>
       <PageHeader title={t("إحصائياتي", "My stats")} section="stats" />
       {mode === "cloud" ? (
-        <Link href="/settings" className="mb-3 flex items-center gap-3 rounded-2xl border border-line bg-surface-2 px-4 py-3">
+        <Link href="/account" className="mb-3 flex items-center gap-3 rounded-2xl border border-line bg-surface-2 px-4 py-3">
           <CircleUserRound className="size-6 shrink-0 text-ocean" />
           <span className="min-w-0 flex-1">
             <span className="block text-xs text-muted">{t("مسجّل الدخول", "Signed in")}</span>
@@ -56,7 +56,7 @@ export default function ProfilePage() {
           </span>
         </Link>
       ) : (
-        <Link href="/login" className="mb-3 flex items-center gap-3 rounded-2xl border border-ocean/50 bg-ocean/10 px-4 py-3">
+        <Link href="/account" className="mb-3 flex items-center gap-3 rounded-2xl border border-ocean/50 bg-ocean/10 px-4 py-3">
           <LogIn className="size-6 shrink-0 text-ocean" />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-bold">{t("تسجيل الدخول / إنشاء حساب", "Sign in / Create account")}</span>
