@@ -5,6 +5,7 @@
 // the server, which also makes responses cacheable (Next data cache + CDN).
 
 import { z } from "zod";
+import { clientIp, limited } from "@/lib/rateLimit";
 import { ATTRIBUTION, fetchMarine, fetchWeather, tideFromMarine, tideFromWorldTides } from "@/lib/marine/providers";
 import type { Conditions } from "@/lib/marine/types";
 
@@ -20,6 +21,7 @@ const Q = z.object({
 });
 
 export async function GET(req: Request) {
+  if (limited(`cond:${clientIp(req)}`, 60, 60_000)) return Response.json({ error: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": "30" } });
   const url = new URL(req.url);
   const parsed = Q.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) return Response.json({ error: "BAD_REQUEST", detail: parsed.error.issues.slice(0, 3) }, { status: 400 });

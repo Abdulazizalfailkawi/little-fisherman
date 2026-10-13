@@ -20,7 +20,7 @@ export default function AccountPage() {
   const { t } = useI18n();
   const toast = useToast();
   const isAdmin = useIsAdmin();
-  const { profile, save, signedIn, error: saveError } = useProfile();
+  const { profile, save, signedIn } = useProfile();
   const fail = t("تعذر الحفظ، جرّب مرة ثانية", "Couldn't save, try again");
   const [name, setName] = useState<string | null>(null);
   const [bio, setBio] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export default function AccountPage() {
     try {
       const m = await addPhoto(f);
       const ok = await save({ avatar_media_id: m.id });
-      if (!ok) setErr(saveError ?? fail);
+      if (!ok) setErr(fail);
       else toast(t("تم تحديث صورتك", "Photo updated"));
     } catch {
       setErr(t("تعذرت قراءة الصورة، جرّب صورة ثانية", "Couldn't read that photo, try another"));
@@ -111,7 +111,7 @@ export default function AccountPage() {
               className="flex items-center gap-1 text-xs text-bad"
               onClick={async () => {
                 const ok = await save({ avatar_media_id: null });
-                if (!ok) setErr(saveError ?? fail);
+                if (!ok) setErr(fail);
               }}
             >
               <Trash2 className="size-3.5" /> {t("حذف الصورة", "Remove photo")}
@@ -136,7 +136,7 @@ export default function AccountPage() {
             setBusy(true);
             const ok = await save({ display_name: shownName.trim() || null, bio: shownBio.trim() || null });
             setBusy(false);
-            if (!ok) setErr(saveError ?? fail);
+            if (!ok) setErr(fail);
             else {
               setErr(null);
               setName(null);

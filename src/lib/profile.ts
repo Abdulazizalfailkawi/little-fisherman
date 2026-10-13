@@ -54,19 +54,23 @@ export function useProfile() {
       );
   }, [uid]);
 
+  /** true when the profile was stored on the server (the app copy is updated either way). */
   const save = useCallback(
-    async (patch: Partial<Profile>): Promise<string | null> => {
-      if (!uid) return "NOT_SIGNED_IN";
+    async (patch: Partial<Profile>): Promise<boolean> => {
+      if (!uid) return false;
       const next = { ...profile, ...patch };
       setProfile(next);
       try {
         localStorage.setItem(key(uid), JSON.stringify(next));
       } catch {}
       const sb = supabase();
-      if (!sb) return "OFFLINE";
+      if (!sb) {
+        setError("OFFLINE");
+        return false;
+      }
       const { error: e } = await sb.from("profiles").upsert({ id: uid, ...next });
       setError(e ? e.message : null);
-      return e ? e.message : null;
+      return !e;
     },
     [uid, profile],
   );

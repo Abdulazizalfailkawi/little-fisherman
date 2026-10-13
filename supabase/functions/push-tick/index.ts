@@ -98,11 +98,19 @@ async function turnsFor(lat: number, lng: number): Promise<Turn[]> {
   return turningPoints(pts, findExtrema(pts));
 }
 
+// constant-time comparison for the shared secret
+function safeEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const { data: cfg } = await sb.from("push_config").select("*").eq("id", 1).maybeSingle();
   if (!cfg) return new Response("no config", { status: 503 });
-  if (req.headers.get("x-cron-secret") !== cfg.cron_secret) return new Response("forbidden", { status: 403 });
+  if (!safeEq(req.headers.get("x-cron-secret") ?? "", String(cfg.cron_secret))) return new Response("forbidden", { status: 403 });
   webpush.setVapidDetails(cfg.subject, cfg.vapid_public, cfg.vapid_private);
 
   // test hook: ?force=1 sends the next waqfa message for each followed spot right away

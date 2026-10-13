@@ -46,7 +46,7 @@ export default function LoginPage() {
       }
       await onSignedIn();
       const next = new URLSearchParams(window.location.search).get("next");
-      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      router.replace(next && /^\/[A-Za-z0-9_\-\/]*(\?[A-Za-z0-9_=&\-]*)?$/.test(next) ? next : "/");
     } catch (err) {
       const m = String((err as Error).message ?? err);
       setMsg({

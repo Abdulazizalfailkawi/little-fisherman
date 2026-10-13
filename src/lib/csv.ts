@@ -9,7 +9,9 @@ type Cell = string | number | boolean | null | undefined;
 export function toCSV(header: string[], rows: Cell[][]): string {
   const esc = (v: Cell) => {
     if (v == null) return "";
-    const s = String(v);
+    let s = String(v);
+    // spreadsheet formula injection: a text cell must not start with = + - @ (or tab / CR)
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // BOM so Excel opens Arabic text correctly
