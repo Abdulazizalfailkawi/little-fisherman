@@ -160,6 +160,10 @@ export interface Trip extends Timestamps {
   trolling_speed_kn?: number | null;
   what_worked?: string | null;
   next_time?: string | null;
+  gear_rod?: string | null;
+  gear_reel?: string | null;
+  gear_line?: string | null;
+  gear_leader?: string | null;
 }
 
 export interface AiCandidate {

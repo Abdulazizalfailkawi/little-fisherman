@@ -68,7 +68,7 @@ function TripEdit() {
     setTrip(base);
     setStartIn(toLocalInput(base.started_at));
     setEndIn(toLocalInput(base.ended_at));
-    setTargetsState(existing ? targetsOf(ds, existing) : balool ? [balool.id] : []);
+    setTargetsState(existing ? targetsOf(ds, existing) : []);
     setEquip(ds.trip_equipment.filter((x) => x.trip_id === base.id).map((x) => x.equipment_id));
     setFixHijri(!!base.hijri_date_override);
     setRange(base.target_depth_max_m != null);
@@ -135,6 +135,7 @@ function TripEdit() {
           identification_status: speciesId ? "manual" : "unidentified",
           location_id: next.location_id,
           technique_id: next.technique_id,
+          tide: next.tide,
         }),
       );
     }
@@ -176,20 +177,26 @@ function TripEdit() {
 
       <div className="space-y-3">
         <Card className="space-y-4">
+          <div className="font-semibold">🎯 {t("الهدف", "The target")}</div>
           <Field label={t("النوع المستهدف", "Target species")}>
-            <div className="flex flex-wrap gap-2">
-              {balool && !targets.includes(balool.id) && (
-                <button type="button" onClick={() => toggleTarget(balool.id)} className="min-h-11 rounded-xl border border-dashed border-teal/60 px-3.5 text-sm text-teal">
-                  <Plus className="me-1 inline size-4" /> {name(balool)}
-                </button>
+            <div className="space-y-2">
+              {targets.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {targets.map((sid) => (
+                    <button key={sid} type="button" onClick={() => toggleTarget(sid)} className="min-h-11 rounded-xl border border-teal bg-teal/15 px-3.5 text-sm text-teal">
+                      <Check className="me-1 inline size-4" /> {name(idx.speciesById.get(sid))} <span className="text-muted">×</span>
+                    </button>
+                  ))}
+                </div>
               )}
-              {targets.map((sid) => (
-                <button key={sid} type="button" onClick={() => toggleTarget(sid)} className="min-h-11 rounded-xl border border-teal bg-teal/15 px-3.5 text-sm text-teal">
-                  <Check className="me-1 inline size-4" /> {name(idx.speciesById.get(sid))}
-                </button>
-              ))}
-              <button type="button" onClick={() => setPickSpecies(true)} className="min-h-11 rounded-xl border border-line bg-surface-2 px-3.5 text-sm text-ink-2">
-                <Plus className="me-1 inline size-4" /> {t("نوع آخر", "Another species")}
+              <Select
+                value={null}
+                onChange={(sid) => sid && !targets.includes(sid) && setTargetsState([...targets, sid])}
+                placeholder={targets.length ? t("＋ أضف نوعاً مستهدفاً ثانياً…", "+ Add another target…") : t("اختر السمكة المستهدفة…", "Pick the target fish…")}
+                options={[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) }))}
+              />
+              <button type="button" onClick={() => setPickSpecies(true)} className="text-sm text-teal">
+                {t("نوع غير موجود في القائمة؟ أضفه", "Not in the list? Add it")}
               </button>
             </div>
           </Field>
@@ -219,6 +226,9 @@ function TripEdit() {
               </div>
             )}
           </div>
+        </Card>
+        <Card className="space-y-4">
+          <div className="font-semibold">🕐 {t("متى؟", "When?")}</div>
           {!existing && (
             <Choice
               value={mode === "past" ? "past" : "now"}
@@ -259,42 +269,66 @@ function TripEdit() {
               {t("تخطيط لوقت لاحق؟ اختر الموعد", "Planning for later? Pick a time")}
             </button>
           )}
+        </Card>
+        <Card className="space-y-4">
+          <div>
+            <div className="font-semibold">🎣 {t("العدّة المستخدمة", "Gear used")}</div>
+            <p className="mt-0.5 text-xs text-muted">{t("اكتب اسم كل قطعة — كله اختياري.", "Type the name of each item — all optional.")}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("البكرة (الماكينة)", "Reel")}>
+              <Input value={trip.gear_reel ?? ""} onChange={(e) => set("gear_reel", e.target.value || null)} placeholder="Shimano Stella" />
+            </Field>
+            <Field label={t("القصبة", "Rod")}>
+              <Input value={trip.gear_rod ?? ""} onChange={(e) => set("gear_rod", e.target.value || null)} placeholder="Major Craft" />
+            </Field>
+            <Field label={t("الخيط", "Line")}>
+              <Input value={trip.gear_line ?? ""} onChange={(e) => set("gear_line", e.target.value || null)} placeholder="PE 3" />
+            </Field>
+            <Field label={t("الليدر", "Leader")}>
+              <Input value={trip.gear_leader ?? ""} onChange={(e) => set("gear_leader", e.target.value || null)} placeholder="Fluoro 40 lb" />
+            </Field>
+          </div>
+          <Field label={isJigging ? t("الجيج (الاسم)", "Jig (name)") : t("الجيج أو الميرور (الاسم)", "Jig or lure (name)")}>
+            <Input value={trip.lure_type ?? ""} onChange={(e) => set("lure_type", e.target.value || null)} placeholder={isTrolling ? "Rapala X-Rap" : "Slow jig"} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("وزنه (غ)", "Weight (g)")}>
+              <NumberInput value={trip.lure_weight_g ?? null} onChange={(v) => set("lure_weight_g", v)} />
+            </Field>
+            <Field label={t("لونه", "Colour")}>
+              <Input value={trip.lure_color ?? ""} onChange={(e) => set("lure_color", e.target.value || null)} />
+            </Field>
+            {isTrolling && (
+              <Field label={t("سرعة التشخيط (عقدة)", "Trolling speed (kn)")}>
+                <NumberInput value={trip.trolling_speed_kn ?? null} onChange={(v) => set("trolling_speed_kn", v)} />
+              </Field>
+            )}
+          </div>
+          <Field label={t("من قائمة معداتي (اختياري)", "From my equipment list (optional)")}>
+            <EquipmentPicker value={equip} onChange={setEquip} />
+          </Field>
+        </Card>
+        <Card className="space-y-3">
+          <div>
+            <div className="font-semibold">🌊 {t("وقت الصيد", "When the fish bit")}</div>
+            <p className="mt-0.5 text-xs text-muted">{t("متى كان المد لما صدت؟ اختياري — إذا تركته فاضي يحسبه التطبيق تلقائياً.", "What was the tide doing when you caught? Optional — left empty, the app works it out automatically.")}</p>
+          </div>
+          <Choice value={trip.tide} onChange={(v) => set("tide", v)} options={TIDES.map((x) => ({ value: x, label: TIDE_LABEL[x][lang] }))} />
+        </Card>
+        <Card>
+          <TripFishEditor trip={trip} pending={pendingFish} setPending={setPendingFish} />
+        </Card>
+        <Card className="space-y-4">
           <Field label={t("اسم الرحلة (اختياري)", "Trip name (optional)")} error={errText("title")}>
             <Input value={trip.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder={t("مثال: تشخيط بالول الفنطاس", "e.g. Al-Fintas Balool trolling")} />
           </Field>
-        </Card>
-
-        <details className="rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4" open={!!(trip.lure_type || equip.length || pendingFish.length)}>
-          <summary className="cursor-pointer list-none font-semibold">🎣 {t("تفاصيل إضافية", "More details")}</summary>
-          <div className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={isJigging ? t("نوع الجك", "Jig type") : t("الطُعم / الإغراء", "Lure / bait")}>
-                <Input value={trip.lure_type ?? ""} onChange={(e) => set("lure_type", e.target.value || null)} placeholder={isTrolling ? "Rapala X-Rap" : isJigging ? "Slow jig" : ""} />
-              </Field>
-              <Field label={t("الوزن (غ)", "Weight (g)")}>
-                <NumberInput value={trip.lure_weight_g ?? null} onChange={(v) => set("lure_weight_g", v)} />
-              </Field>
-              <Field label={t("اللون", "Colour")}>
-                <Input value={trip.lure_color ?? ""} onChange={(e) => set("lure_color", e.target.value || null)} />
-              </Field>
-              <Field label={t("الحجم", "Size")}>
-                <Input value={trip.lure_size ?? ""} onChange={(e) => set("lure_size", e.target.value || null)} />
-              </Field>
-              {isTrolling && (
-                <Field label={t("سرعة التشخيط (عقدة)", "Trolling speed (kn)")}>
-                  <NumberInput value={trip.trolling_speed_kn ?? null} onChange={(v) => set("trolling_speed_kn", v)} />
-                </Field>
-              )}
-              <Field label={t("الخيط PE", "Line PE")} error={errText("line_pe")}>
-                <NumberInput value={trip.line_pe} onChange={(v) => set("line_pe", v)} />
-              </Field>
-            </div>
-            <Field label={t("العصا والمكينة والمعدات", "Rod, reel & gear")}>
-              <EquipmentPicker value={equip} onChange={setEquip} />
+          <Field label={t("ملاحظات", "Notes")} error={errText("notes")}>
+              <Textarea value={trip.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
             </Field>
-            <Field label={t("ملاحظات المعدات", "Gear notes")}>
-              <Input value={trip.gear_notes ?? ""} onChange={(e) => set("gear_notes", e.target.value || null)} />
-            </Field>
+          <details className="rounded-xl border border-line/70 p-3">
+            <summary className="cursor-pointer list-none text-sm font-semibold">{t("خيارات متقدمة (اختياري)", "Advanced options (optional)")}</summary>
+            <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field label={t(`عمق الماء الفعلي (${dw})`, `Actual water depth (${dw})`)} error={errText("water_depth_m")}>
                 <NumberInput value={toUnit(trip.water_depth_m, du)} onChange={(v) => set("water_depth_m", fromUnit(v, du))} />
@@ -309,8 +343,8 @@ function TripEdit() {
                 <Select value={trip.wind_dir} onChange={(v) => set("wind_dir", v as Trip["wind_dir"])} options={WIND_DIRS.map((d) => ({ value: d, label: WIND_LABEL[d][lang] }))} />
               </Field>
             </div>
-            <Field label={t("المد الملاحظ (يدوي)", "Observed tide (manual)")} hint={t("أدخله فقط إذا لاحظته — وإلا يُحفظ من بيانات النموذج تلقائياً", "Only if you observed it — otherwise the model snapshot is saved automatically")}>
-              <Choice value={trip.tide} onChange={(v) => set("tide", v)} options={TIDES.map((x) => ({ value: x, label: TIDE_LABEL[x][lang] }))} />
+            <Field label={t("ملاحظات المعدات", "Gear notes")}>
+              <Input value={trip.gear_notes ?? ""} onChange={(e) => set("gear_notes", e.target.value || null)} />
             </Field>
             {computedHijri && (
               <div className="rounded-xl bg-surface-2 p-3 text-sm">
@@ -337,13 +371,10 @@ function TripEdit() {
                 )}
               </div>
             )}
-            <Field label={t("ملاحظات", "Notes")} error={errText("notes")}>
-              <Textarea value={trip.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
-            </Field>
             {existing && <Toggle checked={statusOf(trip) === "cancelled"} onChange={(v) => set("status", v ? "cancelled" : existing.status === "cancelled" ? "planned" : existing.status)} label={t("رحلة ملغاة (لم تحدث)", "Cancelled (didn't happen)")} />}
-            <TripFishEditor trip={trip} pending={pendingFish} setPending={setPendingFish} />
-          </div>
-        </details>
+            </div>
+          </details>
+        </Card>
       </div>
 
       {blockedByActive && other && (

@@ -22,6 +22,7 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
   const { ds, idx, addPhoto } = useStore();
   const { t, name } = useI18n();
   const cam = useRef<HTMLInputElement>(null);
+  const [fishId, setFishId] = useState<string | null>(null);
   const [fish, setFish] = useState("");
   const [weight, setWeight] = useState<number | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -29,15 +30,17 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
   const saved = ds.catches.filter((c) => c.trip_id === trip.id);
 
   const add = () => {
-    if (!fish.trim() && !photo) return;
-    setPending([...pending, { key: crypto.randomUUID(), name: fish.trim(), weight, photo }]);
+    const nm = fishId === "__new" ? fish.trim() : fishId ? idx.speciesById.get(fishId)?.name_ar ?? "" : "";
+    if (!nm && !photo) return;
+    setPending([...pending, { key: crypto.randomUUID(), name: nm, weight, photo }]);
+    setFishId(null);
     setFish("");
     setWeight(null);
     setPhoto(null);
   };
 
   return (
-    <div className="space-y-2 border-t border-line/40 pt-4">
+    <div className="space-y-2">
       <div className="font-semibold">
         🐟 {t("الأسماك في هذي الرحلة", "Fish on this trip")} <span className="text-ocean">({saved.length + pending.length})</span>
       </div>
@@ -73,12 +76,17 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
 
       <div className="space-y-2 rounded-xl border border-dashed border-ocean/50 p-3">
         <div className="flex items-center gap-2">
-          <Input className="flex-[2]" value={fish} onChange={(e) => setFish(e.target.value)} list="trip-fish-species" placeholder={t("نوع السمكة…", "Fish name…")} autoComplete="off" />
-          <datalist id="trip-fish-species">
-            {ds.species.map((s) => (
-              <option key={s.id} value={s.name_ar} />
-            ))}
-          </datalist>
+          <div className="flex-[2]">
+            <Select
+              value={fishId}
+              onChange={setFishId}
+              placeholder={t("نوع السمكة…", "Fish…")}
+              options={[
+                ...[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) })),
+                { value: "__new", label: t("＋ نوع ثاني (اكتب الاسم)", "+ Another fish (type the name)") },
+              ]}
+            />
+          </div>
           <div className="flex-1">
             <NumberInput value={weight} onChange={setWeight} />
           </div>
@@ -103,15 +111,7 @@ export function TripFishEditor({ trip, pending, setPending }: { trip: Trip; pend
             }}
           />
         </div>
-        <Select
-          value={null}
-          onChange={(id) => {
-            const sp = id ? idx.speciesById.get(id) : null;
-            if (sp) setFish(sp.name_ar);
-          }}
-          placeholder={t("أو اختر من قائمة الأنواع…", "Or pick from the species list…")}
-          options={[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) }))}
-        />
+        {fishId === "__new" && <Input value={fish} onChange={(e) => setFish(e.target.value)} placeholder={t("اكتب اسم السمكة", "Type the fish name")} autoComplete="off" />}
         <Button type="button" className="w-full" loading={busy} onClick={add}>
           <Plus className="size-5" /> {t("إضافة سمكة", "Add fish")}
         </Button>

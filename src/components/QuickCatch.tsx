@@ -39,6 +39,7 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [fishId, setFishId] = useState<string | null>(null);
   const [fish, setFish] = useState("");
   const [loc, setLoc] = useState<string | null>(null);
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
@@ -66,6 +67,7 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
     } catch {}
     const base = fixed ?? active;
     setLoc(base?.location_id ?? (spot && idx.locById.has(spot) ? spot : null));
+    setFishId(null);
     setFish("");
     setPhoto(null);
     setGps(null);
@@ -111,7 +113,7 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
     if (target === "past" && !chosenTrip) return setErr(t("اختر الرحلة", "Pick a trip"));
     setSaving(true);
     try {
-      const speciesId = await resolveSpecies(ds, save, fish);
+      const speciesId = fishId === "__new" ? await resolveSpecies(ds, save, fish) : fishId;
       const c = newCatch(chosenTrip, {
         photo_media_id: photo,
         species_id: speciesId,
@@ -169,23 +171,20 @@ export function QuickCatchSheet({ open, onClose, fixedTripId }: { open: boolean;
           <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onFile(e.target.files)} />
         </div>
 
-        <Field label={t("اسم السمكة", "Fish name")}>
-          <Input value={fish} onChange={(e) => setFish(e.target.value)} list="quick-species" placeholder={t("اكتب الاسم…", "Type the name…")} autoComplete="off" />
-          <datalist id="quick-species">
-            {ds.species.map((s) => (
-              <option key={s.id} value={s.name_ar} />
-            ))}
-          </datalist>
+        <Field label={t("نوع السمكة", "Fish")}>
+          <div className="space-y-2">
+            <Select
+              value={fishId}
+              onChange={setFishId}
+              placeholder={t("اختر من القائمة…", "Pick from the list…")}
+              options={[
+                ...[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) })),
+                { value: "__new", label: t("＋ نوع ثاني (اكتب الاسم)", "+ Another fish (type the name)") },
+              ]}
+            />
+            {fishId === "__new" && <Input value={fish} onChange={(e) => setFish(e.target.value)} placeholder={t("اكتب اسم السمكة", "Type the fish name")} autoComplete="off" />}
+          </div>
         </Field>
-        <Select
-          value={null}
-          onChange={(id) => {
-            const sp = id ? idx.speciesById.get(id) : null;
-            if (sp) setFish(sp.name_ar);
-          }}
-          placeholder={t("أو اختر من قائمة الأنواع…", "Or pick from the species list…")}
-          options={[...ds.species].sort((a, b) => a.name_ar.localeCompare(b.name_ar, "ar")).map((x) => ({ value: x.id, label: name(x) }))}
-        />
 
         <Field label={t("الموقع", "Location")}>
           <div className="space-y-2">
