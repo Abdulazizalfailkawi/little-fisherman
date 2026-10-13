@@ -9,7 +9,6 @@ import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import { SectionTabs } from "./SectionTabs";
-import { SyncBadge } from "./SyncBadge";
 
 export function cn(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -134,7 +133,6 @@ export function PageHeader({
           <h1 className="truncate text-xl font-bold">{title}</h1>
           {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
         </div>
-        <SyncBadge />
         {actions}
       </div>
       {section && <SectionTabs section={section} />}

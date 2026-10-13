@@ -70,11 +70,11 @@ export default function MarineHome() {
   const { t, lang, setLang } = useI18n();
   const depthUnit = useDepthUnit();
   const isAdmin = useIsAdmin();
-  const [headerTop, setHeaderTop] = useState(52);
+  const [headerTop, setHeaderTop] = useState(36);
   useEffect(() => {
     try {
-      const v = Number(localStorage.getItem("ft.headerTop"));
-      if (localStorage.getItem("ft.headerTop") != null && Number.isFinite(v)) setHeaderTop(Math.min(160, Math.max(0, v)));
+      const v = Number(localStorage.getItem("ft.brandTop"));
+      if (localStorage.getItem("ft.brandTop") != null && Number.isFinite(v)) setHeaderTop(Math.min(160, Math.max(0, v)));
     } catch {}
   }, []);
   const [setOpen, setSetOpen] = useState(false);
@@ -219,14 +219,14 @@ export default function MarineHome() {
   return (
     <>
       {/* Header */}
-      <header className="no-print mb-3 pb-1" style={{ paddingTop: `calc(var(--safe-top) + ${isAdmin ? headerTop : 52}px)` }}>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+      <header className="no-print mb-3 pb-1 pt-[calc(var(--safe-top)+0.75rem)]">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-start">
           <div className="flex justify-start">
             <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
               <SettingsIcon className="size-5" />
             </button>
           </div>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-2" style={{ marginTop: isAdmin ? headerTop : 36 }}>
             <img src="/icons/sajji-mark.svg" alt="" className="size-16 shrink-0" />
             <div className="flex flex-col items-center leading-tight">
               <div className="text-3xl font-extrabold">{t("سجي", "SAJJI")}</div>
@@ -692,14 +692,14 @@ export default function MarineHome() {
           {isAdmin && (
           <div>
             <div className="mb-2 flex items-center justify-between text-sm font-medium">
-              <span>{t("موضع الشعار (فوق / تحت)", "Logo position (up / down)")}</span>
+              <span>{t("موضع الشعار والاسم (فوق / تحت)", "Logo & name position (up / down)")}</span>
               <button
                 type="button"
                 className="text-xs text-teal"
                 onClick={() => {
-                  setHeaderTop(52);
+                  setHeaderTop(36);
                   try {
-                    localStorage.removeItem("ft.headerTop");
+                    localStorage.removeItem("ft.brandTop");
                   } catch {}
                 }}
               >
@@ -717,7 +717,7 @@ export default function MarineHome() {
                 const v = Number(e.target.value);
                 setHeaderTop(v);
                 try {
-                  localStorage.setItem("ft.headerTop", String(v));
+                  localStorage.setItem("ft.brandTop", String(v));
                 } catch {}
               }}
               className="w-full accent-[#7fb6f0]"

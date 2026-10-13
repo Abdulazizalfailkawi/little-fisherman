@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Fish, MapPin, Ruler, Sailboat, Scale, Target, Wrench } from "lucide-react";
+import { CircleUserRound, Fish, LogIn, MapPin, Ruler, Sailboat, Scale, Target, Wrench } from "lucide-react";
 import { CatchRow, TripCard } from "@/components/common";
 import { FilterBar } from "@/components/Filters";
 import { Badge, Card, Empty, LinkButton, N, PageHeader, SectionTitle, Stat } from "@/components/ui";
@@ -15,7 +15,7 @@ import { byLocation, byTechnique, catchLocation, catchTechnique, pct, speciesCou
 import { dateKey } from "@/lib/time";
 
 export default function ProfilePage() {
-  const { ds, idx, hijriOffset } = useStore();
+  const { ds, idx, hijriOffset, mode, user } = useStore();
   const { t, name, num, lang } = useI18n();
   const [f, setF] = useState<Filters>({});
 
@@ -47,6 +47,23 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader title={t("إحصائياتي", "My stats")} section="stats" />
+      {mode === "cloud" ? (
+        <Link href="/settings" className="mb-3 flex items-center gap-3 rounded-2xl border border-line bg-surface-2 px-4 py-3">
+          <CircleUserRound className="size-6 shrink-0 text-ocean" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs text-muted">{t("مسجّل الدخول", "Signed in")}</span>
+            <span className="ltr block truncate text-sm font-semibold">{user?.email ?? "—"}</span>
+          </span>
+        </Link>
+      ) : (
+        <Link href="/login" className="mb-3 flex items-center gap-3 rounded-2xl border border-ocean/50 bg-ocean/10 px-4 py-3">
+          <LogIn className="size-6 shrink-0 text-ocean" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">{t("تسجيل الدخول / إنشاء حساب", "Sign in / Create account")}</span>
+            <span className="block text-xs text-ink-2">{t("عشان بياناتك تنحفظ وما تضيع إذا غيّرت الجوال", "So your data is saved and not lost if you change phones")}</span>
+          </span>
+        </Link>
+      )}
       <FilterBar value={f} onChange={setF} fields={["date", "species", "location", "technique"]} />
 
       {!ds.trips.length && !ds.catches.length ? (
