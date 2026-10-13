@@ -24,11 +24,11 @@ export function Bars({ data, height = 180, format = (v: number) => String(Math.r
     <div dir="ltr" style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 8, right: 4, left: -18, bottom: 0 }} barCategoryGap="22%">
-          <CartesianGrid vertical={false} stroke="#213d63" strokeOpacity={0.5} />
-          <XAxis dataKey="label" reversed={dir === "rtl"} tick={{ fill: "#7f97b3", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#213d63" }} interval="preserveStartEnd" />
-          <YAxis orientation={dir === "rtl" ? "right" : "left"} tick={{ fill: "#7f97b3", fontSize: 11 }} tickLine={false} axisLine={false} width={40} allowDecimals />
+          <CartesianGrid vertical={false} stroke="#2a2a2f" strokeOpacity={0.5} />
+          <XAxis dataKey="label" reversed={dir === "rtl"} tick={{ fill: "#e4e4e7", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#2a2a2f" }} interval="preserveStartEnd" />
+          <YAxis orientation={dir === "rtl" ? "right" : "left"} tick={{ fill: "#e4e4e7", fontSize: 11 }} tickLine={false} axisLine={false} width={40} allowDecimals />
           <Tooltip
-            cursor={{ fill: "rgba(45,212,191,0.08)" }}
+            cursor={{ fill: "rgba(127,182,240,0.08)" }}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const d = payload[0].payload as BarDatum & { v: number };
@@ -54,7 +54,7 @@ export function Bars({ data, height = 180, format = (v: number) => String(Math.r
               return (
                 <path
                   d={`M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`}
-                  fill="#2dd4bf"
+                  fill="#7fb6f0"
                   fillOpacity={p.payload.weak ? 0.35 : 0.9}
                 />
               );
@@ -105,9 +105,9 @@ export function SeriesLine({
     <div dir="ltr" style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 14, right: 8, left: -14, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke="#213d63" strokeOpacity={0.5} />
-          <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} reversed={dir === "rtl"} tickFormatter={fmtH} tick={{ fill: "#7f97b3", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#213d63" }} minTickGap={28} />
-          <YAxis domain={[lo - pad, hi + pad]} orientation={dir === "rtl" ? "right" : "left"} tick={{ fill: "#7f97b3", fontSize: 10 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => (Math.abs(v) < 0.05 ? 0 : v).toFixed(digits > 1 ? 1 : 0)} />
+          <CartesianGrid vertical={false} stroke="#2a2a2f" strokeOpacity={0.5} />
+          <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} reversed={dir === "rtl"} tickFormatter={fmtH} tick={{ fill: "#e4e4e7", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#2a2a2f" }} minTickGap={28} />
+          <YAxis domain={[lo - pad, hi + pad]} orientation={dir === "rtl" ? "right" : "left"} tick={{ fill: "#e4e4e7", fontSize: 10 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => (Math.abs(v) < 0.05 ? 0 : v).toFixed(digits > 1 ? 1 : 0)} />
           <Tooltip
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
@@ -122,9 +122,9 @@ export function SeriesLine({
           />
           {now != null && <ReferenceLine x={now} stroke="#fbbf24" strokeDasharray="4 3" />}
           {marks.map((m) => (
-            <ReferenceDot key={m.t} x={m.t} y={m.v} r={4} fill="#2dd4bf" stroke="#050d18" strokeWidth={2} label={{ value: m.label, position: "top", fill: "#b9cbe0", fontSize: 10 }} />
+            <ReferenceDot key={m.t} x={m.t} y={m.v} r={4} fill="#7fb6f0" stroke="#000000" strokeWidth={2} label={{ value: m.label, position: "top", fill: "#f4f4f5", fontSize: 10 }} />
           ))}
-          <Line type="monotone" dataKey="v" stroke="#2dd4bf" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="v" stroke="#7fb6f0" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------
-   Design tokens — deep-sea dark theme
+   Design tokens — black + blue theme
    ------------------------------------------------------------------ */
 @theme {
-  --color-abyss: #050d18;
-  --color-navy: #081426;
-  --color-surface: #0d1c33;
-  --color-surface-2: #132742;
-  --color-surface-3: #1a3354;
-  --color-line: #213d63;
-  --color-ocean: #2f7fe0;
-  --color-ocean-deep: #1d5fb3;
-  --color-teal: #2dd4bf;
-  --color-teal-dim: #14b8a6;
-  --color-ink: #e8f0fa;
-  --color-ink-2: #b9cbe0;
-  --color-muted: #7f97b3;
+  --color-abyss: #000000;
+  --color-navy: #000000;
+  --color-surface: #0e0e10;
+  --color-surface-2: #161618;
+  --color-surface-3: #1f1f23;
+  --color-line: #2a2a2f;
+  --color-ocean: #7fb6f0;
+  --color-ocean-deep: #5e9be0;
+  --color-teal: #7fb6f0;
+  --color-teal-dim: #5e9be0;
+  --color-ink: #ffffff;
+  --color-ink-2: #f4f4f5;
+  --color-muted: #e4e4e7;
   --color-good: #34d399;
   --color-warn: #fbbf24;
   --color-bad: #f87171;
-  --color-rise: #2dd4bf; /* سجي */
+  --color-rise: #7fb6f0; /* سجي */
   --color-fall: #fb7185; /* ثبر */
 
   --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -44,9 +44,7 @@ body {
 
 body {
   min-height: 100dvh;
-  background:
-    radial-gradient(1200px 600px at 50% -200px, rgba(47, 127, 224, 0.16), transparent 60%),
-    linear-gradient(180deg, var(--color-navy) 0%, var(--color-abyss) 100%) fixed;
+  background: #000000;
   font-feature-settings: "tnum" 1;
 }
 

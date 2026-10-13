@@ -7,7 +7,7 @@
 
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
-import { Camera, Loader2, LocateFixed, Plus, X } from "lucide-react";
+import { Camera, Loader2, LocateFixed, X } from "lucide-react";
 import { useStore } from "@/lib/db/store";
 import { getGps } from "@/lib/gps";
 import { newCatch } from "@/lib/factory";
@@ -147,7 +147,7 @@ export function QuickCatch() {
         onClick={openSheet}
         className="no-print fixed end-4 bottom-[calc(var(--safe-bottom)+5rem)] z-40 grid size-14 place-items-center rounded-full bg-teal text-navy shadow-xl shadow-black/40 active:scale-95"
       >
-        <Plus className="size-8" strokeWidth={3} />
+        <span className="text-3xl leading-none" aria-hidden>📷</span>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={t("صيدة سريعة", "Quick catch")}>
         <div className="space-y-4">

@@ -18,7 +18,7 @@ export function cn(...c: (string | false | null | undefined)[]) {
 // ---------------------------------------------------------------------------
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "teal";
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-ocean text-white hover:bg-ocean-deep active:bg-ocean-deep shadow-lg shadow-ocean/20",
+  primary: "bg-ocean text-black hover:bg-ocean-deep active:bg-ocean-deep",
   teal: "bg-teal text-abyss hover:bg-teal-dim font-semibold",
   secondary: "bg-surface-2 text-ink border border-line hover:bg-surface-3",
   ghost: "text-ink-2 hover:bg-surface-2",

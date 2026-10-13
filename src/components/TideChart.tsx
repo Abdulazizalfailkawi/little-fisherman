@@ -105,14 +105,14 @@ export function TideChart({
 
       {yTicks.map((v) => (
         <g key={v}>
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#213d63" strokeOpacity="0.5" />
-          <text x={PAD.l - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill="#7f97b3">
+          <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#2a2a2f" strokeOpacity="0.5" />
+          <text x={PAD.l - 4} y={y(v) + 3} textAnchor="end" fontSize="9" fill="#e4e4e7">
             {(Math.abs(v) < 0.05 ? 0 : v).toFixed(1)}
           </text>
         </g>
       ))}
       {ticks.map((t) => (
-        <text key={t} x={x(t)} y={HGT - 8} textAnchor="middle" fontSize="9" fill="#7f97b3">
+        <text key={t} x={x(t)} y={HGT - 8} textAnchor="middle" fontSize="9" fill="#e4e4e7">
           {fmtH(t)}
         </text>
       ))}
@@ -134,8 +134,8 @@ export function TideChart({
         const yy = v.h != null ? y(v.h) : PAD.t;
         return (
           <g key={"e" + v.t}>
-            <circle cx={x(v.t)} cy={yy} r="4" fill={v.type === "high" ? "var(--color-rise)" : "var(--color-fall)"} stroke="#050d18" strokeWidth="2" />
-            <text x={x(v.t)} y={v.type === "high" ? yy - 8 : Math.min(HGT - PAD.b - 4, yy + 14)} textAnchor="middle" fontSize="9" fill="#e8f0fa">
+            <circle cx={x(v.t)} cy={yy} r="4" fill={v.type === "high" ? "var(--color-rise)" : "var(--color-fall)"} stroke="#000000" strokeWidth="2" />
+            <text x={x(v.t)} y={v.type === "high" ? yy - 8 : Math.min(HGT - PAD.b - 4, yy + 14)} textAnchor="middle" fontSize="9" fill="#ffffff">
               {v.type === "high" ? "▲" : "▼"} {fmtH(v.t)}
             </text>
           </g>
@@ -153,8 +153,8 @@ export function TideChart({
 
       {selPt && (
         <g>
-          <line x1={x(selPt.t)} x2={x(selPt.t)} y1={PAD.t - 8} y2={HGT - PAD.b} stroke="#e8f0fa" strokeOpacity="0.7" />
-          <circle cx={x(selPt.t)} cy={y(selPt.h)} r="5.5" fill="#e8f0fa" stroke="#050d18" strokeWidth="2" />
+          <line x1={x(selPt.t)} x2={x(selPt.t)} y1={PAD.t - 8} y2={HGT - PAD.b} stroke="#ffffff" strokeOpacity="0.7" />
+          <circle cx={x(selPt.t)} cy={y(selPt.h)} r="5.5" fill="#ffffff" stroke="#000000" strokeWidth="2" />
         </g>
       )}
       {/* generous invisible hit area */}

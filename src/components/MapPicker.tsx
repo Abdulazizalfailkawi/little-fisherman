@@ -43,15 +43,15 @@ export function MapPicker({
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(m);
       for (const mk of markers) {
-        L.circleMarker([mk.lat, mk.lng], { radius: 6, color: "#2f7fe0", fillOpacity: 0.8 }).addTo(m).bindTooltip(mk.label ?? "");
+        L.circleMarker([mk.lat, mk.lng], { radius: 6, color: "#7fb6f0", fillOpacity: 0.8 }).addTo(m).bindTooltip(mk.label ?? "");
       }
-      if (value) pin.current = L.circleMarker([value.lat, value.lng], { radius: 9, color: "#2dd4bf", weight: 3, fillOpacity: 0.6 }).addTo(m);
+      if (value) pin.current = L.circleMarker([value.lat, value.lng], { radius: 9, color: "#7fb6f0", weight: 3, fillOpacity: 0.6 }).addTo(m);
       if (!readOnly)
         m.on("click", (e) => {
           const lat = Math.round(e.latlng.lat * 1e5) / 1e5;
           const lng = Math.round(e.latlng.lng * 1e5) / 1e5;
           if (pin.current) pin.current.setLatLng([lat, lng]);
-          else pin.current = L.circleMarker([lat, lng], { radius: 9, color: "#2dd4bf", weight: 3, fillOpacity: 0.6 }).addTo(m);
+          else pin.current = L.circleMarker([lat, lng], { radius: 9, color: "#7fb6f0", weight: 3, fillOpacity: 0.6 }).addTo(m);
           cb.current?.({ lat, lng });
         });
       map.current = m;
@@ -77,7 +77,7 @@ export function MapPicker({
         return;
       }
       if (pin.current) pin.current.setLatLng([value.lat, value.lng]);
-      else pin.current = L.circleMarker([value.lat, value.lng], { radius: 9, color: "#2dd4bf", weight: 3, fillOpacity: 0.6 }).addTo(map.current);
+      else pin.current = L.circleMarker([value.lat, value.lng], { radius: 9, color: "#7fb6f0", weight: 3, fillOpacity: 0.6 }).addTo(map.current);
       map.current.panTo([value.lat, value.lng]);
     })();
   }, [value?.lat, value?.lng]); // eslint-disable-line react-hooks/exhaustive-deps

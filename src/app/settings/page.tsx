@@ -210,7 +210,7 @@ export default function SettingsPage() {
           <>
             <div className="text-sm">{t("تستخدم التطبيق على هذا الجهاز فقط (بدون حساب).", "You're using the app on this device only (no account).")}</div>
             {supabaseConfigured && (
-              <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ocean px-4 text-[15px] font-medium text-white">
+              <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ocean px-4 text-[15px] font-medium text-black">
                 <CloudUpload className="size-4" /> {t("سجّل الدخول لرفع بياناتك ومزامنتها", "Sign in to upload & sync your data")}
               </Link>
             )}
