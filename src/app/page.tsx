@@ -241,10 +241,10 @@ export default function MarineHome() {
             </button>
           </div>
           <div className="flex items-center justify-center gap-2" style={{ marginTop: isAdmin ? headerTop : 36, transform: `translateX(${isAdmin ? brandX : 0}px)` }}>
-            <img src="/icons/sajji-mark.svg" alt="" className="size-16 shrink-0" />
+            <img src="/icons/sajji-mark.svg" alt="" className="size-24 shrink-0" />
             <div className="flex flex-col items-center leading-tight">
-              <div className="text-3xl font-extrabold">{t("سجي", "SAJJI")}</div>
-              <div className="mt-1 text-xs font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
+              <div className="text-5xl font-extrabold">{t("سجي", "SAJJI")}</div>
+              <div className="mt-2 text-base font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
             </div>
           </div>
           <div className="flex justify-end">
@@ -409,7 +409,7 @@ export default function MarineHome() {
                     onClick={() => setDayOff(d)}
                     className={cn("flex-1 rounded-xl border px-2 py-1.5 text-center text-xs font-semibold", dayOff === d ? "border-ocean bg-ocean/20 text-white" : "border-line bg-surface-2 text-ink-2")}
                   >
-                    {d === 0 ? t("اليوم", "Today") : d === 1 ? t("بكرة", "Tomorrow") : dayName(dayStart - dayOff * 24 * H + d * 24 * H + 12 * H, lang)}
+                    {d === 0 ? t("اليوم", "Today") : d === 1 ? t("باجر", "Tomorrow") : dayName(dayStart - dayOff * 24 * H + d * 24 * H + 12 * H, lang)}
                   </button>
                 ))}
               </div>
@@ -426,7 +426,7 @@ export default function MarineHome() {
                   return (
                     <div key={type} className="rounded-xl bg-surface-2 px-3 py-2">
                       <div className={cn("flex items-center gap-1 text-[11px]", cls)}>
-                        <Icon className="size-3" /> {l} <span className="text-white">· {dayOff === 0 ? t("اليوم", "today") : dayOff === 1 ? t("بكرة", "tomorrow") : dayName(dayStart + 12 * H, lang)}</span>
+                        <Icon className="size-3" /> {l} <span className="text-white">· {dayOff === 0 ? t("اليوم", "today") : dayOff === 1 ? t("باجر", "tomorrow") : dayName(dayStart + 12 * H, lang)}</span>
                       </div>
                       {list.length ? (
                         list.map((e, i) => {
@@ -627,7 +627,7 @@ export default function MarineHome() {
           {/* Tile 3 — tide graph */}
           <Card className="mt-2 p-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{t("جراف المد — صعود وهبوط", "Tide graph — rise & fall")}</span>
+              <span className="text-sm font-semibold">{t("Graph — صعود وهبوط", "Graph — rise & fall")}</span>
               {sel != null && (
                 <button className="text-xs text-teal" onClick={() => setSel(null)}>
                   {t("عودة للآن", "Back to now")}
