@@ -148,22 +148,7 @@ export function EnvPanel({ trip, c }: { trip: Trip | null; c?: Catch }) {
           {isPast ? t("البيانات التاريخية غير متوفرة لهذا الوقت والمكان.", "Historical data unavailable for this time and place.") : t("البيانات غير متوفرة.", "Data unavailable.")}
         </Notice>
       )}
-      {env.unavailable.includes("tide") && !env.tidePhase && (
-        <Notice>
-          {t("بيانات المد والجزر غير متوفرة. يمكنك إدخال الأوقات الرسمية يدوياً من ", "Tide data unavailable. You can enter official times manually from ")}
-          <a className="text-teal underline" href={KMC_MARINE_URL} target="_blank" rel="noreferrer">
-            met.gov.kw <ExternalLink className="inline size-3" />
-          </a>
-        </Notice>
-      )}
-      {env.tidePhase && env.tidePhase.kind === "model" && (
-        <p className="text-xs leading-relaxed text-muted">
-          {t(
-            "المد من نموذج مستوى البحر (Open-Meteo) وليس جدول مد رسمياً، وقد يختلف قرب الساحل. الجدول الرسمي: الأرصاد الجوية الكويتية.",
-            "Tide is from a sea-level model (Open-Meteo), not an official tide table, and may differ near the coast. Official tables: Kuwait Meteorological Center.",
-          )}
-        </p>
-      )}
+      {env.unavailable.includes("tide") && !env.tidePhase && <Notice>{t("بيانات المد والجزر غير متوفرة.", "Tide data unavailable.")}</Notice>}
       {msg && <Notice tone="warn">{msg}</Notice>}
 
       <div className="flex flex-wrap gap-2">

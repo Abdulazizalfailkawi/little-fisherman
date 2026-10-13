@@ -18,6 +18,9 @@ import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
 import { SEA_STATES, TIDES, WIND_DIRS, type Trip } from "@/lib/types";
 import { validateTrip } from "@/lib/validate";
 import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
+import { TripFishEditor, type PendingFish } from "@/components/TripFishEditor";
+import { newCatch } from "@/lib/factory";
+import { resolveSpecies } from "@/lib/speciesLookup";
 
 export default function Page() {
   return (
@@ -53,6 +56,7 @@ function TripEdit() {
   const [fixHijri, setFixHijri] = useState(false);
   const [pickSpecies, setPickSpecies] = useState(false);
   const [showTime, setShowTime] = useState(false);
+  const [pendingFish, setPendingFish] = useState<PendingFish[]>([]);
 
   const balool = useMemo(() => ds.species.find((s) => normalizeName(s.name_ar) === normalizeName("بالول")), [ds.species]);
   const other = activeTrip(ds);
@@ -120,6 +124,20 @@ function TripEdit() {
     setSaving(true);
     await save("trips", next);
     await setTargets(store, next, targets);
+    for (const pf of pendingFish) {
+      const speciesId = await resolveSpecies(store.ds, store.save, pf.name);
+      await save(
+        "catches",
+        newCatch(next, {
+          species_id: speciesId,
+          weight_kg: pf.weight,
+          photo_media_id: pf.photo,
+          identification_status: speciesId ? "manual" : "unidentified",
+          location_id: next.location_id,
+          technique_id: next.technique_id,
+        }),
+      );
+    }
     const before = ds.trip_equipment.filter((x) => x.trip_id === next.id);
     const toRemove = before.filter((x) => !equip.includes(x.equipment_id));
     const toAdd = equip.filter((eid) => !before.some((x) => x.equipment_id === eid));
@@ -246,7 +264,7 @@ function TripEdit() {
           </Field>
         </Card>
 
-        <details className="rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4" open={!!(trip.lure_type || equip.length)}>
+        <details className="rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-4" open={!!(trip.lure_type || equip.length || pendingFish.length)}>
           <summary className="cursor-pointer list-none font-semibold">🎣 {t("تفاصيل إضافية", "More details")}</summary>
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -323,6 +341,7 @@ function TripEdit() {
               <Textarea value={trip.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
             </Field>
             {existing && <Toggle checked={statusOf(trip) === "cancelled"} onChange={(v) => set("status", v ? "cancelled" : existing.status === "cancelled" ? "planned" : existing.status)} label={t("رحلة ملغاة (لم تحدث)", "Cancelled (didn't happen)")} />}
+            <TripFishEditor trip={trip} pending={pendingFish} setPending={setPendingFish} />
           </div>
         </details>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
-// Banner: "a new version is available — update now". Checks when the app is
-// opened/brought back to the foreground and every 15 minutes.
+// Small bar above the tab bar: "a new version is available" + an update button.
+// Checks when the app is opened/brought back to the foreground and every 15 minutes.
 
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
@@ -36,13 +36,9 @@ export function UpdatePrompt() {
 
   if (!show) return null;
   return (
-    <div role="alert" className="no-print fixed inset-x-0 top-[calc(var(--safe-top)+0.5rem)] z-[70] flex justify-center px-4">
-      <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-ocean/50 bg-[#0a1220] px-4 py-3 shadow-2xl">
-        <RefreshCw className="size-5 shrink-0 text-ocean" />
-        <div className="min-w-0 flex-1 text-sm">
-          <div className="font-semibold">{t("يتوفر تحديث جديد", "A new version is available")}</div>
-          <div className="text-xs text-ink-2">{t("حدّث الآن لتحصل على آخر إصدار.", "Update now to get the latest version.")}</div>
-        </div>
+    <div role="alert" className="no-print fixed inset-x-0 bottom-[calc(var(--safe-bottom)+4.75rem)] z-[70] flex justify-center px-3">
+      <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-ocean/50 bg-[#0a1220] py-2 pe-2 ps-4 shadow-2xl">
+        <div className="min-w-0 flex-1 text-sm font-semibold">{t("يوجد تحديث جديد", "A new version is available")}</div>
         <button
           type="button"
           disabled={busy}
@@ -50,9 +46,9 @@ export function UpdatePrompt() {
             setBusy(true);
             void applyUpdate();
           }}
-          className="shrink-0 rounded-xl bg-ocean px-4 py-2 text-sm font-bold text-black disabled:opacity-60"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-ocean px-3.5 py-2 text-sm font-bold text-black disabled:opacity-60"
         >
-          {t("حدّث الآن", "Update now")}
+          <RefreshCw className={busy ? "size-4 animate-spin" : "size-4"} strokeWidth={2.4} /> {t("تحديث", "Update")}
         </button>
       </div>
     </div>

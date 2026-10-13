@@ -16,6 +16,7 @@ import { useStore } from "@/lib/db/store";
 import { EQUIP_LABEL, MOON_LABEL, SEA_LABEL, TIDE_LABEL, WIND_LABEL, label, useI18n } from "@/lib/i18n";
 import { fmtDateTime, tripHours } from "@/lib/time";
 import { fmtDepth, fmtDepthRange, useDepthUnit } from "@/lib/depth";
+import { QuickCatchSheet } from "@/components/QuickCatch";
 
 export default function Page() {
   return (
@@ -44,6 +45,7 @@ function TripDetail() {
   const du = useDepthUnit();
   const router = useRouter();
   const [confirmDel, setConfirmDel] = useState(false);
+  const [addFish, setAddFish] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaErr, setMediaErr] = useState<string | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
@@ -170,9 +172,9 @@ function TripDetail() {
       {st === "completed" && (
         <>
           <TripSummary trip={trip} />
-          <LinkButton href={`/catch/edit?trip=${trip.id}`} variant="secondary" className="mt-2 w-full">
-            <Fish className="size-5" /> {t("إضافة صيدة لهذه الرحلة", "Add a catch to this trip")}
-          </LinkButton>
+          <Button variant="secondary" className="mt-2 w-full" onClick={() => setAddFish(true)}>
+            <Fish className="size-5" /> {t("＋ أضف سمكة لهذي الرحلة", "+ Add a fish to this trip")}
+          </Button>
         </>
       )}
 
@@ -317,6 +319,7 @@ function TripDetail() {
           </div>
         )}
       </Sheet>
+      <QuickCatchSheet open={addFish} onClose={() => setAddFish(false)} fixedTripId={trip.id} />
     </>
   );
 }

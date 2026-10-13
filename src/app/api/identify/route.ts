@@ -106,6 +106,9 @@ async function authorize(req: Request): Promise<string | null> {
   const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await sb.auth.getUser(token);
   if (error || !data.user) return "UNAUTHENTICATED";
+  // AI identification is limited to the admin account.
+  const admin = (process.env.ADMIN_EMAIL || "alfailkaw33@gmail.com").toLowerCase();
+  if ((data.user.email ?? "").toLowerCase() !== admin) return "FORBIDDEN";
   return null;
 }
 
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { error: "AI_NOT_CONFIGURED" });
 
   const authError = await authorize(req);
-  if (authError) return json(401, { error: authError });
+  if (authError) return json(authError === "FORBIDDEN" ? 403 : 401, { error: authError });
 
   let body: z.infer<typeof RequestSchema>;
   try {

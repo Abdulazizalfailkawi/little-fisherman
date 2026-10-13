@@ -20,6 +20,7 @@ import { normalizeName } from "@/lib/normalize";
 import { getGps } from "@/lib/gps";
 import { snapshotCatch } from "@/lib/marine/snapshots";
 import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
+import { useIsAdmin } from "@/lib/admin";
 
 export default function Page() {
   return (
@@ -36,6 +37,7 @@ function CatchEdit() {
   const store = useStore();
   const { ds, idx, save, remove, addPhoto } = store;
   const { t, lang, name } = useI18n();
+  const isAdmin = useIsAdmin();
   const du = useDepthUnit();
   const dw = depthWord(du, lang);
   const router = useRouter();
@@ -223,7 +225,7 @@ function CatchEdit() {
             </div>
           )}
 
-          {c.photo_media_id && (
+          {isAdmin && c.photo_media_id && (
             <AiPanel
               photoMediaId={c.photo_media_id}
               suggestion={c.ai_suggestion}

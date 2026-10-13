@@ -21,6 +21,7 @@ import { DEFAULT_CYCLE, formatRanges, overlaps, parseRanges, readCycleConfig, sa
 import { tripRows } from "@/lib/stats";
 import { fmtDateTime, todayKey } from "@/lib/time";
 import { TABLE_ORDER, type Dataset } from "@/lib/types";
+import { useIsAdmin } from "@/lib/admin";
 
 function WindUnitChoice() {
   const { t } = useI18n();
@@ -115,6 +116,7 @@ function CycleSettings() {
 }
 
 export default function SettingsPage() {
+  const isAdmin = useIsAdmin();
   const store = useStore();
   const { ds, idx, mode, user, online, syncing, pending, failed, lastSyncAt, syncError, hijriOffset, setHijriOffset, save, remove } = store;
   const { t, lang, setLang } = useI18n();
@@ -204,6 +206,11 @@ export default function SettingsPage() {
 
       {msg && <Notice tone={msg.tone} className="mb-3">{msg.text}</Notice>}
 
+      {isAdmin && (
+        <Link href="/admin" className="mb-2 block rounded-2xl border border-warn/40 bg-warn/10 px-4 py-3 text-center text-sm font-bold text-warn">
+          {t("لوحة المشرف", "Admin dashboard")}
+        </Link>
+      )}
       <SectionTitle>{t("الحساب", "Account")}</SectionTitle>
       <Card className="space-y-3">
         {mode === "cloud" ? (
@@ -325,6 +332,8 @@ export default function SettingsPage() {
         )}
       </Card>
 
+      {isAdmin && (
+        <>
       <SectionTitle>{t("التعرّف بالذكاء الاصطناعي", "AI identification")}</SectionTitle>
       <Card className="space-y-2 text-sm">
         <div className="flex items-center gap-2">
@@ -343,6 +352,11 @@ export default function SettingsPage() {
         )}
       </Card>
 
+        </>
+      )}
+
+      {isAdmin && (
+        <>
       <SectionTitle>
         <span id="backup">{t("النسخ الاحتياطي والاستعادة", "Backup & restore")}</span>
       </SectionTitle>
@@ -358,6 +372,11 @@ export default function SettingsPage() {
         <p className="text-xs text-muted">{t("الاستعادة تدمج السجلات (لا تحذف شيئاً موجوداً). تعمل لنقل البيانات بين الأجهزة.", "Restore merges records (nothing existing is deleted). Use it to move data between devices.")}</p>
       </Card>
 
+      {isAdmin && (
+        <>
+        </>
+      )}
+
       <SectionTitle>{t("تصدير CSV", "CSV export")}</SectionTitle>
       <Card className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Button variant="secondary" onClick={() => download(`trips-${todayKey()}.csv`, tripsCSV(ds, idx, hijriOffset), "text/csv")}>
@@ -371,6 +390,11 @@ export default function SettingsPage() {
         </Button>
       </Card>
 
+        </>
+      )}
+
+      {isAdmin && (
+        <>
       <SectionTitle>
         <span id="demo">{t("بيانات تجريبية", "Demo data")}</span>
       </SectionTitle>
@@ -391,6 +415,9 @@ export default function SettingsPage() {
         )}
       </Card>
 
+        </>
+      )}
+
       <SectionTitle>{t("مصادر البيانات وحدودها", "Data sources & limits")}</SectionTitle>
       <Card className="space-y-2 text-xs leading-relaxed text-muted">
         <p>• {t("الطقس: Open-Meteo (توقعات، وأرشيف توقعات منذ ٢٠٢٢، وإعادة تحليل ERA5 لما قبل). مخرجات نماذج — ليست رصداً فعلياً.", "Weather: Open-Meteo (forecasts, archived forecasts since 2022, ERA5 reanalysis before). Model output — not on-site observations.")}</p>
@@ -398,7 +425,6 @@ export default function SettingsPage() {
         <p>• {t("المد والجزر: نموذج مستوى البحر من Open-Meteo (ليس جدولاً رسمياً ولا للملاحة). الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول.", "Tide: Open-Meteo sea-level model (not an official table, not for navigation). Waqfa = period where the level changes < 5 cm/h around the turn.")}</p>
         <p>• {t("بيانات الطقس والبحر: Open-Meteo.com (CC BY 4.0). كل القيم توقعات/تقديرات نماذج وليست قياسات من موقعك.", "Weather & marine data: Open-Meteo.com (CC BY 4.0). All values are forecasts/model estimates, not measurements at your spot.")}</p>
         <p>• {t("الشروق والغروب وطور القمر: حسابات فلكية (SunCalc).", "Sunrise, sunset & moon phase: astronomical calculation (SunCalc).")}</p>
-        <p>• {t("التعرّف على الأسماك: Claude (Anthropic) — اقتراح فقط ويتطلب تأكيدك.", "Fish ID: Claude (Anthropic) — a suggestion that always needs your confirmation.")}</p>
         <p>• {t("الأوقات معروضة بتوقيت الكويت (UTC+3) ومخزنة بتوقيت UTC.", "Times are shown in Kuwait time (UTC+3) and stored in UTC.")}</p>
       </Card>
     </>

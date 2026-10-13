@@ -30,6 +30,7 @@ import { dateKey, fmtDate, fmtDateTime, fmtTime } from "@/lib/time";
 import { normalizeName } from "@/lib/normalize";
 import { uuid } from "@/lib/ids";
 import { isActiveStatus } from "@/lib/types";
+import { useIsAdmin } from "@/lib/admin";
 
 const H = 3_600_000;
 const STALE_MS = 6 * H;
@@ -68,6 +69,7 @@ export default function MarineHome() {
   const { ds, idx, online, hijriOffset, ready, save } = store;
   const { t, lang, setLang } = useI18n();
   const depthUnit = useDepthUnit();
+  const isAdmin = useIsAdmin();
   const [setOpen, setSetOpen] = useState(false);
   const [upd, setUpd] = useState<string | null>(null);
   const now = useNow(1000);
@@ -389,15 +391,15 @@ export default function MarineHome() {
                   return (
                     <div key={type} className="rounded-xl bg-surface-2 px-3 py-2">
                       <div className={cn("flex items-center gap-1 text-[11px]", cls)}>
-                        <Icon className="size-3" /> {l} <span className="text-muted">· {t("اليوم", "today")}</span>
+                        <Icon className="size-3" /> {l} <span className="text-white">· {t("اليوم", "today")}</span>
                       </div>
                       {list.length ? (
                         list.map((e, i) => {
                           const past = e.t < now;
                           return (
-                            <div key={e.t} className={cn("mt-1.5", past && "opacity-50")}>
+                            <div key={e.t} className="mt-1.5">
                               <div className="whitespace-nowrap text-lg font-bold leading-tight">{fmtTime(e.t, lang)}</div>
-                              <div className={cn("text-[11px] leading-tight", !past && e.t === nextT ? "font-semibold text-white" : "text-ink-2")}>
+                              <div className={cn("text-[11px] leading-tight text-white", !past && e.t === nextT && "font-semibold")}>
                                 {nth(i)} {nth(i) ? "· " : ""}
                                 {past ? t("مضى", "passed") : remain(e.t - now, lang)}
                               </div>
@@ -498,9 +500,9 @@ export default function MarineHome() {
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2 text-sm">
-              <span className="text-[11px] font-medium text-ocean">{t("دورة اليوم", "Today's cycle")}</span>
+              <span className="text-[11px] font-medium text-white">{t("دورة اليوم", "Today's cycle")}</span>
               <span className="font-bold">
-                <span className={cyc.cycle === "hamal" ? "text-ocean" : cyc.cycle === "fasad" ? "text-warn" : "text-ink-2"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم`, `${CYCLE_LABEL[cyc.cycle].en} — day`)}</span>{" "}
+                <span className="text-white">{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم`, `${CYCLE_LABEL[cyc.cycle].en} — day`)}</span>{" "}
                 <span className="text-white">{cyc.day}</span>
               </span>
             </div>
@@ -712,6 +714,11 @@ export default function MarineHome() {
           <Button variant="secondary" className="w-full" onClick={() => { setSetOpen(false); window.dispatchEvent(new Event("ft:welcome")); }}>
             {t("دليل الاستخدام وتثبيت التطبيق", "Guide & install the app")}
           </Button>
+          {isAdmin && (
+            <Link href="/admin" className="block rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-center text-sm font-bold text-warn">
+              {t("لوحة المشرف", "Admin dashboard")}
+            </Link>
+          )}
           <Link href="/settings" className="block rounded-xl border border-line bg-surface-2 px-4 py-3 text-center text-sm font-medium">
             {t("كل الإعدادات", "All settings")}
           </Link>
