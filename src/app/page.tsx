@@ -9,7 +9,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
 import { LocationForm } from "@/components/LocationForm";
-import { ManualTideForm, readManualTide } from "@/components/ManualTide";
 import { TideChart } from "@/components/TideChart";
 import { Badge, Button, Card, Choice, Empty, LinkButton, Notice, Sheet, Spinner, cn } from "@/components/ui";
 import { SyncBadge } from "@/components/SyncBadge";
@@ -78,8 +77,6 @@ export default function MarineHome() {
   const [res, setRes] = useState<ConditionsResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualRev, setManualRev] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [open1, setOpen1] = useState(false);
   const [open2, setOpen2] = useState(false);
@@ -168,11 +165,9 @@ export default function MarineHome() {
 
   const c = res?.data ?? null;
   const today = dateKey(new Date(now));
-  const manual = useMemo(() => (spotId ? readManualTide(spotId, today) : null), [spotId, today, manualRev]); // eslint-disable-line react-hooks/exhaustive-deps
   const model = useMemo(() => (c ? turnsOf(c) : { pts: [], turns: [] as TurnEvent[] }), [c]);
-  const manualTurns = useMemo(() => (manual ? turningPointsFromEvents(manual.events) : null), [manual]);
-  const turns = manualTurns && manualTurns.some((x) => x.t > now) ? manualTurns : model.turns;
-  const usingManual = turns === manualTurns;
+  const usingManual = false;
+  const turns = model.turns;
   const st = tideState(usingManual ? [] : model.pts, turns, now);
   const stale = !!res?.savedAt && now - res.savedAt > STALE_MS;
   const fetchedAge = c ? now - Date.parse(c.fetched_at) : 0;
@@ -209,12 +204,11 @@ export default function MarineHome() {
   const dirLabel = (d: string | null) =>
     d === "rising" ? t("سجي", "Saji · rising") : d === "falling" ? t("ثبر", "Thabr · falling") : d === "waqfa" ? t("وقفة", "Waqfa · slack") : "—";
   const dirColor = (d: string | null) => (d === "rising" ? "text-rise" : d === "falling" ? "text-fall" : "text-warn");
-  const tideSource = usingManual ? t(`يدوي — ${manual!.station === "shuwaikh" ? "الشويخ" : manual!.station === "shuaiba" ? "الشعيبة" : "مصدر آخر"}`, `Manual — ${manual!.station}`) : c?.tide.source ?? "";
 
   return (
     <>
       {/* Header */}
-      <header className="no-print sticky top-0 z-30 -mx-4 mb-3 border-b border-line/40 bg-navy/85 px-4 pb-3 pt-[calc(var(--safe-top)+0.75rem)] backdrop-blur-xl">
+      <header className="no-print mb-3 pb-1 pt-[calc(var(--safe-top)+0.75rem)]">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex justify-start">
             <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
@@ -439,16 +433,7 @@ export default function MarineHome() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
-                  <KindBadge kind={usingManual ? "manual" : (c?.tide.kind ?? "unavailable")} />
-                  <span className="truncate">{tideSource}</span>
-                </div>
                 <div className="flex flex-wrap gap-2">
-                  {spotId && (
-                    <Button size="sm" variant="secondary" onClick={() => setManualOpen(true)}>
-                      <PencilLine className="size-4" /> {usingManual ? t("تعديل الأوقات اليدوية", "Edit manual times") : t("إدخال أوقات رسمية يدوياً", "Enter official times")}
-                    </Button>
-                  )}
                   <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 px-2 text-xs text-teal underline">
                     {t("الجدول الرسمي", "Official table")} <ExternalLink className="size-3" />
                   </a>
@@ -640,22 +625,8 @@ export default function MarineHome() {
             ) : (
               <p className="text-sm text-muted">{t("بيانات مستوى البحر غير متوفرة لهذا الموقع.", "Sea-level data unavailable for this spot.")}</p>
             )}
-            {!usingManual && c?.tide.status !== "unavailable" && (
-              <p className="mt-2 text-[11px] leading-relaxed text-muted">
-                {t(
-                  "تنبؤ من نموذج مستوى البحر (Open-Meteo، شبكة ~٥–٩ كم) — ليس جدولاً رسمياً ولا للملاحة. الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول.",
-                  "Prediction from a sea-level model (Open-Meteo, ~5–9 km grid) — not an official table, not for navigation. Waqfa = period where the level changes < 5 cm/h around the turn.",
-                )}
-              </p>
-            )}
           </Card>
 
-          {c && (
-            <p className="mt-3 px-1 text-[11px] leading-relaxed text-muted">
-              {c.weather.source} · {c.marine.source}. {t("آخر تحديث", "Last update")}: {fmtDateTime(c.fetched_at, lang)}
-              {fetchedAge > H ? t(" (منذ أكثر من ساعة)", " (over an hour ago)") : ""}. {c.attribution} {t("القيم توقعات/تقديرات نماذج وليست قياسات من موقعك.", "Values are forecasts/model estimates, not measurements at your spot.")}
-            </p>
-          )}
         </>
       )}
 
@@ -723,6 +694,9 @@ export default function MarineHome() {
             </Button>
             {upd && <p className="mt-2 text-center text-xs text-ink-2">{upd}</p>}
           </div>
+          <Button variant="secondary" className="w-full" onClick={() => { setSetOpen(false); window.dispatchEvent(new Event("ft:welcome")); }}>
+            {t("دليل الاستخدام وتثبيت التطبيق", "Guide & install the app")}
+          </Button>
           <Link href="/settings" className="block rounded-xl border border-line bg-surface-2 px-4 py-3 text-center text-sm font-medium">
             {t("كل الإعدادات", "All settings")}
           </Link>
@@ -742,18 +716,6 @@ export default function MarineHome() {
             }
           }}
         />
-      </Sheet>
-      <Sheet open={manualOpen} onClose={() => setManualOpen(false)} title={t("أوقات المد الرسمية — اليوم", "Official tide times — today")}>
-        {spotId && (
-          <ManualTideForm
-            spot={spotId}
-            day={today}
-            onDone={() => {
-              setManualOpen(false);
-              setManualRev((v) => v + 1);
-            }}
-          />
-        )}
       </Sheet>
     </>
   );

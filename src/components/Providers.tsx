@@ -11,6 +11,7 @@ import { BottomNav } from "./BottomNav";
 import { QuickCatch } from "./QuickCatch";
 import { ToastProvider } from "./Toast";
 import { UpdatePrompt } from "./UpdatePrompt";
+import { Welcome } from "./Welcome";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -78,6 +79,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <BottomNav />
           <QuickCatch />
           <UpdatePrompt />
+          <Welcome />
           <AchievementRecorder />
           <SnapshotFiller />
         </>

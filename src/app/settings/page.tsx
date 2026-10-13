@@ -395,7 +395,8 @@ export default function SettingsPage() {
       <Card className="space-y-2 text-xs leading-relaxed text-muted">
         <p>• {t("الطقس: Open-Meteo (توقعات، وأرشيف توقعات منذ ٢٠٢٢، وإعادة تحليل ERA5 لما قبل). مخرجات نماذج — ليست رصداً فعلياً.", "Weather: Open-Meteo (forecasts, archived forecasts since 2022, ERA5 reanalysis before). Model output — not on-site observations.")}</p>
         <p>• {t("الموج والسويل وحرارة الماء والتيارات: Open-Meteo Marine (نماذج بدقة ~٥–٩ كم).", "Waves, swell, sea temperature & currents: Open-Meteo Marine (~5–9 km models).")}</p>
-        <p>• {t("المد والجزر: نموذج مستوى البحر من Open-Meteo (ليس جدولاً رسمياً)، أو أوقاتك المدخلة يدوياً من جداول الأرصاد الكويتية (الشويخ، الشعيبة).", "Tide: Open-Meteo sea-level model (not an official table), or times you enter manually from the Kuwait Met tables (Shuwaikh, Shuaiba).")}</p>
+        <p>• {t("المد والجزر: نموذج مستوى البحر من Open-Meteo (ليس جدولاً رسمياً ولا للملاحة). الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول.", "Tide: Open-Meteo sea-level model (not an official table, not for navigation). Waqfa = period where the level changes < 5 cm/h around the turn.")}</p>
+        <p>• {t("بيانات الطقس والبحر: Open-Meteo.com (CC BY 4.0). كل القيم توقعات/تقديرات نماذج وليست قياسات من موقعك.", "Weather & marine data: Open-Meteo.com (CC BY 4.0). All values are forecasts/model estimates, not measurements at your spot.")}</p>
         <p>• {t("الشروق والغروب وطور القمر: حسابات فلكية (SunCalc).", "Sunrise, sunset & moon phase: astronomical calculation (SunCalc).")}</p>
         <p>• {t("التعرّف على الأسماك: Claude (Anthropic) — اقتراح فقط ويتطلب تأكيدك.", "Fish ID: Claude (Anthropic) — a suggestion that always needs your confirmation.")}</p>
         <p>• {t("الأوقات معروضة بتوقيت الكويت (UTC+3) ومخزنة بتوقيت UTC.", "Times are shown in Kuwait time (UTC+3) and stored in UTC.")}</p>
