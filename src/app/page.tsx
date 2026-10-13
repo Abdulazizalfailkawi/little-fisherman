@@ -211,7 +211,35 @@ export default function MarineHome() {
       {/* Header */}
       <header className="no-print sticky top-0 z-30 -mx-4 mb-3 border-b border-line/40 bg-navy/85 px-4 pb-3 pt-[calc(var(--safe-top)+0.75rem)] backdrop-blur-xl">
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <img src="/icons/sajji-mark.svg" alt="" className="size-9 shrink-0" />
+            <div className="leading-tight">
+              <div className="text-lg font-extrabold">{t("سجي", "SAJJI")}</div>
+              <div className="text-[10px] font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
+            </div>
+          </div>
+          <button
+            aria-label="GPS"
+            onClick={async () => {
+              setGpsErr(null);
+              try {
+                setGpsPt(await getGps());
+                setSel(null);
+              } catch (e) {
+                setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
+              }
+            }}
+            className="grid size-10 place-items-center rounded-full border border-line bg-surface-2"
+          >
+            <LocateFixed className="size-5" />
+          </button>
+          <button aria-label="refresh" disabled={!online || !pt || loading} onClick={() => load(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2 disabled:opacity-40">
+            <RefreshCw className={cn("size-5", loading && "animate-spin")} />
+          </button>
+          <SyncBadge />
+        </div>
+        <div className="mt-2">
+          <div className="min-w-0">
             <div className="relative">
               <select
                 aria-label={t("موقع الصيد", "Fishing spot")}
@@ -244,25 +272,6 @@ export default function MarineHome() {
               <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
           </div>
-          <button
-            aria-label="GPS"
-            onClick={async () => {
-              setGpsErr(null);
-              try {
-                setGpsPt(await getGps());
-                setSel(null);
-              } catch (e) {
-                setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
-              }
-            }}
-            className="grid size-10 place-items-center rounded-full border border-line bg-surface-2"
-          >
-            <LocateFixed className="size-5" />
-          </button>
-          <button aria-label="refresh" disabled={!online || !pt || loading} onClick={() => load(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2 disabled:opacity-40">
-            <RefreshCw className={cn("size-5", loading && "animate-spin")} />
-          </button>
-          <SyncBadge />
         </div>
         {gpsErr && <p className="mt-1 text-xs text-warn">{gpsErr}</p>}
       </header>
