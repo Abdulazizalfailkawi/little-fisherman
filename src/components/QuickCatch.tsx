@@ -145,9 +145,9 @@ export function QuickCatch() {
         type="button"
         aria-label={t("تسجيل سريع لصيدة", "Quick catch")}
         onClick={openSheet}
-        className="no-print fixed end-4 bottom-[calc(var(--safe-bottom)+5rem)] z-40 grid size-14 place-items-center rounded-full bg-teal text-navy shadow-xl shadow-black/40 active:scale-95"
+        className="no-print fixed end-4 bottom-[calc(var(--safe-bottom)+5rem)] z-40 grid size-14 place-items-center rounded-full bg-good text-black shadow-xl shadow-black/40 active:scale-95"
       >
-        <span className="text-3xl leading-none" aria-hidden>📷</span>
+        <Camera className="size-8 text-black" strokeWidth={2.4} />
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={t("صيدة سريعة", "Quick catch")}>
         <div className="space-y-4">
