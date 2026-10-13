@@ -70,6 +70,13 @@ export default function MarineHome() {
   const { t, lang, setLang } = useI18n();
   const depthUnit = useDepthUnit();
   const isAdmin = useIsAdmin();
+  const [headerTop, setHeaderTop] = useState(52);
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem("ft.headerTop"));
+      if (localStorage.getItem("ft.headerTop") != null && Number.isFinite(v)) setHeaderTop(Math.min(160, Math.max(0, v)));
+    } catch {}
+  }, []);
   const [setOpen, setSetOpen] = useState(false);
   const [upd, setUpd] = useState<string | null>(null);
   const now = useNow(1000);
@@ -212,7 +219,7 @@ export default function MarineHome() {
   return (
     <>
       {/* Header */}
-      <header className="no-print mb-3 pb-1 pt-[calc(var(--safe-top)+3.25rem)]">
+      <header className="no-print mb-3 pb-1" style={{ paddingTop: `calc(var(--safe-top) + ${headerTop}px)` }}>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex justify-start">
             <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
@@ -681,6 +688,43 @@ export default function MarineHome() {
                 { value: "m", label: t("متر", "metres") },
               ]}
             />
+          </div>
+          <div>
+            <div className="mb-2 flex items-center justify-between text-sm font-medium">
+              <span>{t("موضع الشعار (فوق / تحت)", "Logo position (up / down)")}</span>
+              <button
+                type="button"
+                className="text-xs text-teal"
+                onClick={() => {
+                  setHeaderTop(52);
+                  try {
+                    localStorage.removeItem("ft.headerTop");
+                  } catch {}
+                }}
+              >
+                {t("إعادة", "Reset")}
+              </button>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={160}
+              step={4}
+              value={headerTop}
+              aria-label={t("موضع الشعار", "Logo position")}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setHeaderTop(v);
+                try {
+                  localStorage.setItem("ft.headerTop", String(v));
+                } catch {}
+              }}
+              className="w-full accent-[#7fb6f0]"
+            />
+            <div className="mt-1 flex justify-between text-[11px] text-muted">
+              <span>{t("أعلى", "Higher")}</span>
+              <span>{t("أنزل", "Lower")}</span>
+            </div>
           </div>
           <div>
             <div className="mb-2 text-sm font-medium">{t("اللغة", "Language")}</div>
