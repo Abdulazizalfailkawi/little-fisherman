@@ -183,7 +183,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={t("الإعدادات", "Settings")} back="/more" />
+      <PageHeader section="stats" title={t("الإعدادات", "Settings")} />
 
       {msg && <Notice tone={msg.tone} className="mb-3">{msg.text}</Notice>}
 

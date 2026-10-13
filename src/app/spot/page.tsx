@@ -88,7 +88,7 @@ function SpotPage() {
               try {
                 localStorage.setItem("ft.marineSpot", loc.id);
               } catch {}
-              router.push("/marine");
+              router.push("/");
             }}
           >
             <Waves className="size-4" /> {t("الظروف البحرية", "Marine conditions")}

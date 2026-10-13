@@ -38,7 +38,7 @@ function Gallery() {
     const out: Item[] = [];
     for (const c of ds.catches) {
       const s = c.species_id ? idx.speciesById.get(c.species_id) : null;
-      const trip = idx.tripById.get(c.trip_id);
+      const trip = idx.tripById.get(c.trip_id ?? "");
       const loc = trip?.location_id ? idx.locById.get(trip.location_id)?.name : "";
       if (mode === "unidentified" && c.species_id) continue;
       if (!c.photo_media_id) {
@@ -73,7 +73,7 @@ function Gallery() {
 
   return (
     <>
-      <PageHeader title={t("معرض الصور", "Photo gallery")} subtitle={`${items.length}`} back="/more" />
+      <PageHeader section="trips" title={t("معرض الصور", "Photo gallery")} subtitle={`${items.length}`} />
       <div className="space-y-3">
         <Input placeholder={t("ابحث بالنوع أو الموقع…", "Search by species or spot…")} value={q} onChange={(e) => setQ(e.target.value)} />
         <Choice

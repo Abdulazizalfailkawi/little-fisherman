@@ -34,7 +34,7 @@ export default function ReportPage() {
     <>
       <PageHeader
         title={t("تقرير الصيد", "Fishing report")}
-        back="/more"
+        back="/stats"
         actions={
           <Button size="sm" onClick={() => window.print()}>
             <Printer className="size-4" /> {t("طباعة / PDF", "Print / PDF")}

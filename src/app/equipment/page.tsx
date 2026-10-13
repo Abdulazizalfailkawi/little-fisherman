@@ -17,15 +17,14 @@ export default function EquipmentPage() {
   const usage = (id: string) => {
     const trips = new Set(ds.trip_equipment.filter((x) => x.equipment_id === id).map((x) => x.trip_id));
     const direct = new Set(ds.catch_equipment.filter((x) => x.equipment_id === id).map((x) => x.catch_id));
-    const fish = ds.catches.filter((c) => trips.has(c.trip_id) || direct.has(c.id)).length;
+    const fish = ds.catches.filter((c) => trips.has(c.trip_id ?? "") || direct.has(c.id)).length;
     return { trips: trips.size, fish };
   };
 
   return (
     <>
-      <PageHeader
+      <PageHeader section="trips"
         title={t("المعدات", "Equipment")}
-        back="/more"
         actions={
           <Button size="sm" onClick={() => setEdit("new")} aria-label="add">
             <Plus className="size-5" />

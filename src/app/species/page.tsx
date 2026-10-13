@@ -11,6 +11,7 @@ import { Badge, Button, Card, Empty, Notice, PageHeader, SectionTitle, Sheet, St
 import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import { MIN_SAMPLE, speciesStats } from "@/lib/stats";
+import { depthBins } from "@/lib/analyticsExtra";
 import { fmtDate } from "@/lib/time";
 
 export default function Page() {
@@ -42,7 +43,7 @@ function SpeciesPage() {
 
   const mostInTrip = (() => {
     const m = new Map<string, number>();
-    for (const c of st.catches) m.set(c.trip_id, (m.get(c.trip_id) ?? 0) + 1);
+    for (const c of st.catches) if (c.trip_id) m.set(c.trip_id, (m.get(c.trip_id) ?? 0) + 1);
     const best = [...m.entries()].sort((a, b) => b[1] - a[1])[0];
     return best ? { trip: idx.tripById.get(best[0]), n: best[1] } : null;
   })();
@@ -151,6 +152,24 @@ function SpeciesPage() {
               <div className="mb-1 text-xs text-muted">{t("الطرق", "Techniques")}</div>
               <div className="flex flex-wrap gap-1.5">
                 {st.techniques.length ? st.techniques.map((x) => <Badge key={x.techniqueId} tone="ocean">{name(idx.techById.get(x.techniqueId))} ×{x.count}</Badge>) : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-muted">{t("العمق الفعلي (م)", "Actual depth (m)")}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(() => {
+                  const d = depthBins(st.catches, 5);
+                  return (
+                    <>
+                      {d.bins.map((b) => (
+                        <Badge key={b.label}>
+                          <span className="ltr">{b.label}</span> ×{b.count}
+                        </Badge>
+                      ))}
+                      <span className="text-xs text-muted">{t(`(${d.known} بعمق مسجل، ${d.missing} بدون)`, `(${d.known} with depth, ${d.missing} without)`)}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div>

@@ -1,10 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Fish, Flag, Play, Plus } from "lucide-react";
+import { useToast } from "@/components/Toast";
+import { useNow } from "@/lib/hooks/useNow";
+import { activeTrip, elapsed, finishTrip, startTrip, targetsOf } from "@/lib/trips";
+import { isActiveStatus } from "@/lib/types";
 import { TripCard } from "@/components/common";
 import { FilterBar } from "@/components/Filters";
-import { Choice, Empty, Input, LinkButton, N, PageHeader } from "@/components/ui";
+import { Button, Card, Choice, Empty, Input, LinkButton, N, PageHeader } from "@/components/ui";
 import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import { matches } from "@/lib/normalize";
@@ -12,8 +18,12 @@ import { pct, summarize, tripRows, type Filters } from "@/lib/stats";
 import { fmtDate, monthKey } from "@/lib/time";
 
 export default function TripsPage() {
-  const { ds, idx, hijriOffset } = useStore();
+  const store = useStore();
+  const { ds, idx, hijriOffset } = store;
   const { t, lang, name } = useI18n();
+  const toast = useToast();
+  const router = useRouter();
+  const now = useNow(30_000);
   const [f, setF] = useState<Filters>({});
   const [result, setResult] = useState<"all" | "success" | "blank">("all");
 
@@ -21,9 +31,10 @@ export default function TripsPage() {
     const r = tripRows(ds, idx, f, hijriOffset, true).reverse();
     return r.filter((x) => {
       if (result === "success" && !x.success) return false;
-      if (result === "blank" && (x.success || x.trip.status === "draft")) return false;
+      if (x.trip.status === "planned" || isActiveStatus(x.trip.status)) return false; // shown above
+      if (result === "blank" && (x.success || x.trip.status !== "completed")) return false;
       // Species filter: trips that caught it or targeted it ("success" = caught that species).
-      if (f.speciesId && !x.success && x.trip.target_species_id !== f.speciesId) return false;
+      if (f.speciesId && !x.success && !targetsOf(ds, x.trip).includes(f.speciesId)) return false;
       if (f.q) {
         const loc = x.trip.location_id ? idx.locById.get(x.trip.location_id)?.name : "";
         const sp = x.allCatches.map((c) => (c.species_id ? `${idx.speciesById.get(c.species_id)?.name_ar} ${idx.speciesById.get(c.species_id)?.name_en}` : "")).join(" ");
@@ -35,6 +46,9 @@ export default function TripsPage() {
   }, [ds, idx, f, hijriOffset, result, name]);
 
   const completed = rows.filter((r) => r.trip.status === "completed");
+  const active = activeTrip(ds);
+  const planned = ds.trips.filter((x) => x.status === "planned").sort((a, b) => a.started_at.localeCompare(b.started_at));
+  const unlinked = ds.catches.filter((c) => !c.trip_id).length;
   const s = summarize(completed);
   const groups = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -44,15 +58,81 @@ export default function TripsPage() {
 
   return (
     <>
-      <PageHeader
-        title={t("الرحلات", "Trips")}
+      <PageHeader section="trips"
+        title={t("رحلاتي وصيدي", "Trips & catches")}
         subtitle={t(`${s.trips} رحلة · ${s.catches} سمكة · نجاح ${pct(s.successRate)}`, `${s.trips} trips · ${s.catches} fish · ${pct(s.successRate)} success`)}
         actions={
-          <LinkButton href="/trip/edit" size="sm" className="!px-2.5" aria-label="new">
-            <Plus className="size-5" />
-          </LinkButton>
+          active ? (
+            <LinkButton href="/trip/edit" size="sm" className="!px-2.5" aria-label="new">
+              <Plus className="size-5" />
+            </LinkButton>
+          ) : undefined
         }
       />
+      {active ? (
+        <Card className="mb-3 space-y-3 border-teal/40">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-teal">{t("الرحلة الجارية", "Active trip")}</div>
+            <span className="text-xs text-warn">{elapsed(active.started_at, now, lang)}</span>
+          </div>
+          <TripCard trip={active} />
+          <div className="flex gap-2">
+            <LinkButton href={`/catch/edit?trip=${active.id}`} variant="teal" size="lg" className="flex-1">
+              <Fish className="size-5" /> {t("سجّل صيدة", "Log catch")}
+            </LinkButton>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={async () => {
+                await finishTrip(store, active);
+                toast(t("انتهت الرحلة", "Trip finished"));
+                router.push(`/trip?id=${active.id}`);
+              }}
+            >
+              <Flag className="size-5" /> {t("أنهِ الرحلة", "Finish")}
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <LinkButton href="/trip/edit" size="lg" className="mb-3 w-full">
+          <Plus className="size-5" /> {t("رحلة جديدة", "New trip")}
+        </LinkButton>
+      )}
+      {planned.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <div className="px-1 text-sm font-semibold text-ink-2">{t("رحلات مخططة", "Planned trips")}</div>
+          {planned.map((p) => (
+            <div key={p.id} className="space-y-1">
+              <TripCard trip={p} />
+              {!active && (
+                <Button
+                  size="sm"
+                  variant="teal"
+                  className="w-full"
+                  onClick={async () => {
+                    await startTrip(store, p);
+                    toast(t("بدأت الرحلة — بالتوفيق!", "Trip started — good luck!"));
+                    router.push(`/trip?id=${p.id}`);
+                  }}
+                >
+                  <Play className="size-4" /> {t("ابدأ الرحلة", "Start trip")}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <LinkButton href="/catch/edit" variant="secondary" size="sm">
+          <Fish className="size-4" /> {t("صيدة بدون رحلة", "Catch without a trip")}
+        </LinkButton>
+        {unlinked > 0 && (
+          <Link href="/catches?unlinked=1" className="text-xs text-warn underline">
+            {t(`${unlinked} صيدة غير مرتبطة برحلة`, `${unlinked} catches not linked to a trip`)}
+          </Link>
+        )}
+      </div>
+
       <div className="space-y-3">
         <Input placeholder={t("بحث في الرحلات والملاحظات والمواقع…", "Search trips, notes, spots…")} value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value || undefined })} />
         <FilterBar value={f} onChange={setF} />
@@ -70,7 +150,7 @@ export default function TripsPage() {
 
       {rows.length === 0 ? (
         <div className="mt-6">
-          <Empty icon="🛶" title={ds.trips.length ? t("لا توجد نتائج", "No matching trips") : t("لا توجد رحلات بعد", "No trips yet")} action={!ds.trips.length && <LinkButton href="/quick">{t("ابدأ", "Start")}</LinkButton>} />
+          <Empty icon="🛶" title={ds.trips.length ? t("لا توجد نتائج", "No matching trips") : t("لا توجد رحلات بعد", "No trips yet")} action={undefined} />
         </div>
       ) : (
         [...groups.entries()].map(([k, list]) => {

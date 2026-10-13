@@ -52,6 +52,7 @@ export default function CalendarPage() {
   const byDay = useMemo(() => {
     const m = new Map<string, TripRow[]>();
     for (const r of rows) {
+      if (r.trip.status === "cancelled") continue;
       // A species filter keeps trips that caught or targeted it
       if (f.speciesId && !r.success && r.trip.target_species_id !== f.speciesId) continue;
       let day = r.day;
@@ -119,7 +120,7 @@ export default function CalendarPage() {
 
   return (
     <>
-      <PageHeader title={t("تقويم الصيد", "Fishing calendar")} />
+      <PageHeader section="trips" title={t("تقويم الصيد", "Fishing calendar")} />
       <div className="space-y-3">
         <Choice
           value={view}

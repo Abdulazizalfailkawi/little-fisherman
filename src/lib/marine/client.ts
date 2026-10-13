@@ -5,7 +5,8 @@
 import { moonAt, sunTimes } from "../astro";
 import { uuid } from "../ids";
 import type { EnvPurpose, EnvironmentObservation } from "../types";
-import { cleanSeries, heightAt, phaseAt, surroundingExtrema } from "./tide";
+import { cleanSeries, heightAt, type Pt } from "./tide";
+import { minutesToNearestTurn, tideState, turningPoints, type TurnEvent } from "./waqfa";
 import type { Conditions, MarineHour, WeatherHour } from "./types";
 
 const TTL_FORECAST = 30 * 60_000; // refresh forecasts after 30 min
@@ -83,23 +84,36 @@ export function hourAt<T extends { t: string }>(hours: T[], at: number): T | nul
   return bd <= 90 * 60_000 ? best : null;
 }
 
-export function tideAt(c: Conditions, at: number) {
-  if (c.tide.status === "unavailable" || c.tide.status === "error") return null;
+/** Turning points (with estimated waqfa windows) of a conditions response. */
+export function turnsOf(c: Conditions): { pts: Pt[]; turns: TurnEvent[] } {
+  if (c.tide.status === "unavailable" || c.tide.status === "error") return { pts: [], turns: [] };
   const pts = cleanSeries(c.tide.series.map((p) => ({ t: p.t, h: p.h })));
   const ext = c.tide.extremes.map((e) => ({ t: Date.parse(e.t), h: e.h, type: e.type }));
+  return { pts, turns: turningPoints(pts, ext) };
+}
+
+export function tideAt(c: Conditions, at: number) {
+  const { pts, turns } = turnsOf(c);
+  if (!pts.length) return null;
   const h = heightAt(pts, at);
   if (h == null) return null;
-  const s = surroundingExtrema(ext, at);
+  const st = tideState(pts, turns, at);
+  const near = minutesToNearestTurn(turns, at);
   const iso = (x: { t: number } | null) => (x ? new Date(x.t).toISOString() : null);
+  const phase = st.direction === "waqfa" ? (st.turn?.type === "high" ? "high_slack" : "low_slack") : st.direction;
   return {
     height: Math.round(h * 100) / 100,
-    phase: phaseAt(pts, ext, at),
-    next_high_at: iso(s.nextHigh),
-    next_high_m: s.nextHigh ? Math.round(s.nextHigh.h * 100) / 100 : null,
-    next_low_at: iso(s.nextLow),
-    next_low_m: s.nextLow ? Math.round(s.nextLow.h * 100) / 100 : null,
-    prev_high_at: iso(s.prevHigh),
-    prev_low_at: iso(s.prevLow),
+    phase,
+    in_waqfa: st.direction === "waqfa",
+    rate_cm_h: st.rateCmPerH,
+    next_high_at: iso(st.nextHigh),
+    next_high_m: st.nextHigh?.h ?? null,
+    next_low_at: iso(st.nextLow),
+    next_low_m: st.nextLow?.h ?? null,
+    prev_high_at: iso([...turns].reverse().find((x) => x.t <= at && x.type === "high") ?? null),
+    prev_low_at: iso([...turns].reverse().find((x) => x.t <= at && x.type === "low") ?? null),
+    nearest_turn_type: near?.turn.type ?? null,
+    minutes_from_turn: near?.minutes ?? null,
   };
 }
 
@@ -113,7 +127,7 @@ type Row = Omit<EnvironmentObservation, "created_at" | "updated_at">;
 export function snapshotRows(
   c: Conditions | null,
   at: Date,
-  ctx: { tripId: string; catchId: string | null; purpose: EnvPurpose; lat: number | null; lng: number | null; error?: string | null },
+  ctx: { tripId: string | null; catchId: string | null; purpose: EnvPurpose; lat: number | null; lng: number | null; error?: string | null },
 ): Row[] {
   const snapshot_id = uuid();
   const fetched_at = c?.fetched_at ?? new Date().toISOString();

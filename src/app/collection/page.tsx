@@ -32,7 +32,7 @@ export default function CollectionPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader section="stats"
         title={t("مجموعتي", "My Fish Collection")}
         subtitle={t(`${caughtTotal} من ${all.length} نوع`, `${caughtTotal} of ${all.length} species`)}
         actions={

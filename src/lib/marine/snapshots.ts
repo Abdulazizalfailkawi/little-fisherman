@@ -28,7 +28,7 @@ export function coordsForCatch(ds: Dataset, c: Catch): { lat: number; lng: numbe
 
 export async function takeSnapshot(
   store: Pick<Store, "save">,
-  args: { at: Date; tripId: string; catchId: string | null; purpose: EnvPurpose; coords: { lat: number; lng: number } | null },
+  args: { at: Date; tripId: string | null; catchId: string | null; purpose: EnvPurpose; coords: { lat: number; lng: number } | null },
 ): Promise<{ ok: boolean; error: string | null }> {
   const { at, coords } = args;
   let cond = null;

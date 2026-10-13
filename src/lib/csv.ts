@@ -72,7 +72,7 @@ export function catchesCSV(ds: Dataset, idx: Index): string {
       return [
         c.id,
         c.trip_id,
-        idx.tripById.get(c.trip_id)?.title,
+        idx.tripById.get(c.trip_id ?? "")?.title,
         toLocalInput(c.caught_at).replace("T", " "),
         sp?.name_ar ?? "",
         sp?.name_en ?? "",

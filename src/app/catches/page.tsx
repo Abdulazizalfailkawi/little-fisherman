@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DualDate, Photo } from "@/components/common";
 import { FilterBar } from "@/components/Filters";
 import { Badge, Choice, Empty, Input, PageHeader } from "@/components/ui";
@@ -21,12 +21,17 @@ export default function CatchHistoryPage() {
   const { t, lang, name } = useI18n();
   const [f, setF] = useState<Filters>({});
   const [sort, setSort] = useState<"new" | "old">("new");
+  const [unlinked, setUnlinked] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("unlinked")) setUnlinked(true);
+  }, []);
   const unit = readWindUnit();
 
   const items = useMemo(() => {
     return ds.catches
       .map((c) => ({ c, env: catchEnv(ds, c) }))
       .filter(({ c, env }) => {
+        if (unlinked && c.trip_id) return false;
         const day = dateKey(c.caught_at);
         if (f.from && day < f.from) return false;
         if (f.to && day > f.to) return false;
@@ -41,19 +46,24 @@ export default function CatchHistoryPage() {
         }
         if (f.q) {
           const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
-          if (!matches(f.q, sp?.name_ar, sp?.name_en, ...(sp?.aliases ?? []), c.notes, c.lure_bait, idx.tripById.get(c.trip_id)?.notes)) return false;
+          if (!matches(f.q, sp?.name_ar, sp?.name_en, ...(sp?.aliases ?? []), c.notes, c.lure_bait, idx.tripById.get(c.trip_id ?? "")?.notes)) return false;
         }
         return true;
       })
       .sort((a, b) => (sort === "new" ? b.c.caught_at.localeCompare(a.c.caught_at) : a.c.caught_at.localeCompare(b.c.caught_at)));
-  }, [ds, idx, f, sort, hijriOffset]);
+  }, [ds, idx, f, sort, hijriOffset, unlinked]);
 
   return (
     <>
-      <PageHeader title={t("سجل الصيد", "Catch history")} subtitle={t(`${items.length} صيدة`, `${items.length} catches`)} back="/more" />
+      <PageHeader section="trips" title={t("سجل الصيد", "Catch history")} subtitle={t(`${items.length} صيدة`, `${items.length} catches`)} />
       <div className="space-y-3">
         <Input placeholder={t("ابحث بالنوع أو الملاحظات…", "Search species or notes…")} value={f.q ?? ""} onChange={(e) => setF({ ...f, q: e.target.value || undefined })} />
         <FilterBar value={f} onChange={setF} />
+        {unlinked && (
+          <button className="text-xs text-warn underline" onClick={() => setUnlinked(false)}>
+            {t("تعرض الصيدات غير المرتبطة برحلة فقط — إظهار الكل", "Showing catches without a trip only — show all")}
+          </button>
+        )}
         <Choice
           value={sort}
           allowClear={false}

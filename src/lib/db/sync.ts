@@ -32,6 +32,7 @@ const CASCADE: Partial<Record<TableName, { table: TableName; col: string }[]>> =
     { table: "catches", col: "trip_id" },
     { table: "trip_equipment", col: "trip_id" },
     { table: "trip_media", col: "trip_id" },
+    { table: "trip_targets", col: "trip_id" },
     { table: "environment_observations", col: "trip_id" },
   ],
   catches: [
@@ -48,6 +49,9 @@ const CASCADE: Partial<Record<TableName, { table: TableName; col: string }[]>> =
     { table: "catch_media", col: "media_id" },
   ],
 };
+// Species removal also removes it from trip targets (FK on delete cascade).
+CASCADE.species = [{ table: "trip_targets", col: "species_id" }];
+
 const SET_NULL: Partial<Record<TableName, { table: TableName; col: string }[]>> = {
   species: [
     { table: "catches", col: "species_id" },

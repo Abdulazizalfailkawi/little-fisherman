@@ -50,7 +50,7 @@ function Line({ label, p, render }: { label: string; p: Prov<unknown> | null; re
  * Environmental context of a trip or catch with provenance for every value,
  * the list of stored snapshots, re-fetch and manual correction.
  */
-export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
+export function EnvPanel({ trip, c }: { trip: Trip | null; c?: Catch }) {
   const store = useStore();
   const { ds, save, online } = store;
   const { t, lang } = useI18n();
@@ -59,11 +59,11 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const [hist, setHist] = useState(false);
-  const env: ResolvedEnv = useMemo(() => (c ? catchEnv(ds, c) : tripEnv(ds, trip)), [ds, c, trip]);
-  const at = c?.caught_at ?? trip.started_at;
-  const coords = c ? coordsForCatch(ds, c) : coordsForTrip(ds, trip);
+  const env: ResolvedEnv = useMemo(() => (c ? catchEnv(ds, c) : tripEnv(ds, trip!)), [ds, c, trip]);
+  const at = c?.caught_at ?? trip!.started_at;
+  const coords = c ? coordsForCatch(ds, c) : coordsForTrip(ds, trip!);
   const isPast = Date.parse(at) < Date.now() - 3_600_000;
-  const all = ds.environment_observations.filter((e) => (c ? e.catch_id === c.id : e.trip_id === trip.id && !e.catch_id));
+  const all = ds.environment_observations.filter((e) => (c ? e.catch_id === c.id : e.trip_id === trip!.id && !e.catch_id));
   const groups = useMemo(() => {
     const m = new Map<string, EnvironmentObservation[]>();
     for (const e of all) m.set(e.snapshot_id ?? e.id, [...(m.get(e.snapshot_id ?? e.id) ?? []), e]);
@@ -76,7 +76,7 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
     setMsg(null);
     const r = c
       ? await snapshotCatch(store, c)
-      : await takeSnapshot(store, { at: new Date(at), tripId: trip.id, catchId: null, purpose: Date.parse(at) > Date.now() + 3_600_000 ? "planned" : "trip_start", coords });
+      : await takeSnapshot(store, { at: new Date(at), tripId: trip!.id, catchId: null, purpose: Date.parse(at) > Date.now() + 3_600_000 ? "planned" : "trip_start", coords });
     setBusy(false);
     if (!r.ok)
       setMsg(
@@ -100,7 +100,14 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
           render={() => (
             <>
               {tideTxt(env.tidePhase!.value)}
-              {env.tideHeight ? <span className="ltr text-muted"> · {env.tideHeight.value} m MSL</span> : null}
+              {env.tideHeight ? (
+                <span className="text-muted">
+                  {" · "}
+                  <bdi>
+                    {env.tideHeight.value} {t("م", "m")}
+                  </bdi>
+                </span>
+              ) : null}
             </>
           )}
         />
@@ -121,7 +128,7 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
             </>
           )}
         />
-        <Line label={t("الموج", "Waves")} p={env.wave} render={() => <>{env.wave!.value} m{env.wavePeriod ? ` · ${env.wavePeriod.value} s` : ""}</>} />
+        <Line label={t("الموج", "Waves")} p={env.wave} render={() => <bdi>{env.wave!.value} {t("م", "m")}{env.wavePeriod ? ` · ${env.wavePeriod.value} ${t("ث", "s")}` : ""}</bdi>} />
         <Line label={t("حرارة الماء", "Sea temp")} p={env.seaTemp} render={() => <>{env.seaTemp!.value}°C</>} />
         <Line label={t("حرارة الجو", "Air temp")} p={env.airTemp} render={() => <>{env.airTemp!.value}°C</>} />
         {(env.sunrise || env.sunset) && (
@@ -208,7 +215,7 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
       <Sheet open={manual} onClose={() => setManual(false)} title={t("إدخال يدوي", "Manual entry")}>
         <ManualEnvForm
           at={at}
-          tripId={trip.id}
+          tripId={trip?.id ?? null}
           catchId={c?.id ?? null}
           onDone={async (row) => {
             if (row) await save("environment_observations", row);
@@ -220,7 +227,7 @@ export function EnvPanel({ trip, c }: { trip: Trip; c?: Catch }) {
   );
 }
 
-function ManualEnvForm({ at, tripId, catchId, onDone }: { at: string; tripId: string; catchId: string | null; onDone: (row: EnvironmentObservation | null) => void }) {
+function ManualEnvForm({ at, tripId, catchId, onDone }: { at: string; tripId: string | null; catchId: string | null; onDone: (row: EnvironmentObservation | null) => void }) {
   const { t, lang } = useI18n();
   const unit = readWindUnit();
   const [tide, setTide] = useState<Tide | null>(null);

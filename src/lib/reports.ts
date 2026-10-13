@@ -42,7 +42,7 @@ export function realOnly(ds: Dataset): Dataset {
   return {
     ...ds,
     trips: ds.trips.filter((t) => !t.is_demo),
-    catches: ds.catches.filter((c) => !c.is_demo && !demoTrips.has(c.trip_id)),
+    catches: ds.catches.filter((c) => !c.is_demo && !demoTrips.has(c.trip_id ?? "")),
   };
 }
 

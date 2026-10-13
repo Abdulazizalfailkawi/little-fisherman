@@ -36,7 +36,7 @@ export default function SearchPage() {
 
   return (
     <>
-      <PageHeader title={t("بحث", "Search")} back="/more" />
+      <PageHeader title={t("بحث", "Search")} back="/trips" />
       <Input autoFocus placeholder={t("أنواع، رحلات، ملاحظات، مواقع، معدات…", "Species, trips, notes, spots, gear…")} value={q} onChange={(e) => setQ(e.target.value)} />
       {res && (
         <>

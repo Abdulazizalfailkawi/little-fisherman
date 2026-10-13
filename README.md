@@ -59,6 +59,22 @@ statistics are computed in the browser from the saved records
 
 ---
 
+## v3 — three sections, سجي / ثبر / الوقفة, trip lifecycle
+
+**Navigation (exactly three):** البحر (`/`, marine dashboard) · رحلاتي وصيدي (`/trips` + tabs: catches, calendar, spots, gear, photos) · إحصائياتي (`/stats` + tabs: species, analytics, records, reports, goals, settings). Old routes (`/marine`, `/quick`, `/more`) redirect.
+
+**Tide terms:** سجي = rising, ثبر = falling, الوقفة = approximate slack period around a turning point.
+
+**Waqfa method (`src/lib/marine/waqfa.ts`):** turning point = extremum of the predicted sea-level series (parabolic refinement); curvature *a* from the second difference; waqfa = interval where |rate| < 5 cm/h, i.e. ±(0.05/|a|) h, capped at 90 min (flagged “flat” for weak tides). Turning-time uncertainty ±30 min for hourly data. With event times only (manual official table) the event time is shown and **no waqfa duration is invented**. The countdown re-targets automatically when a turning point passes and refetches when the loaded window runs out.
+
+**Tide chart:** custom SVG, monotone-cubic interpolation through the provider’s hourly values (no overshoot; in-between values are estimates), teal = سجي, coral = ثبر, shaded estimated waqfa, “now” line, tap/drag readout.
+
+**Trips:** planned → active → completed (cancelled possible); one active trip at a time; several target species per trip (`trip_targets`); target depth or range; lure/jig type, weight, colour, size; trolling speed; completion summary with “what worked / next time”. Catches can exist without a trip and be linked later; a catch during an active trip is linked automatically and prefilled from the plan (all fields editable).
+
+**Statistics:** completed trips only. Target success per species = completed trips with S as a target on which ≥1 S was caught; multi-target trips counted per target. Depth uses actual catch depth only (missing ≠ 0); lure stats show usage where recorded; tide/waqfa comparisons use each catch’s own snapshot.
+
+**Migration:** `supabase/migrations/20261013000004_trip_lifecycle_targets.sql` (additive; `draft` kept as legacy alias of `active`).
+
 ## Marine intelligence (v2)
 
 ### What was investigated for Kuwait (Oct 2026)

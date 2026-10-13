@@ -26,7 +26,7 @@ export default function AchievementsPage() {
 
   return (
     <>
-      <PageHeader title={t("الإنجازات والأهداف", "Achievements & goals")} back="/more" />
+      <PageHeader section="stats" title={t("الإنجازات والأهداف", "Achievements & goals")} />
 
       <Card className="flex items-center gap-4">
         <div className="text-4xl">🏆</div>

@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
-import { Fish, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { Fish, Flag, ImagePlus, Pencil, Play, Trash2 } from "lucide-react";
 import { CatchRow, DualDate, Photo } from "@/components/common";
 import { EnvPanel } from "@/components/EnvPanel";
+import { useToast } from "@/components/Toast";
+import { TripSummary } from "@/components/TripSummary";
+import { useNow } from "@/lib/hooks/useNow";
+import { activeTrip, cancelTrip, elapsed, finishTrip, startTrip, statusOf, targetsOf } from "@/lib/trips";
 import { Badge, Button, Card, Empty, LinkButton, Notice, PageHeader, SectionTitle, Sheet } from "@/components/ui";
 import { MOON_EMOJI, effectiveMoonPhase, moonAt } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
@@ -31,7 +35,10 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 
 function TripDetail() {
   const id = useSearchParams().get("id");
-  const { ds, idx, save, remove, addPhoto, addVideo } = useStore();
+  const store = useStore();
+  const { ds, idx, save, remove, addPhoto, addVideo } = store;
+  const toast = useToast();
+  const now = useNow(30_000);
   const { t, lang, name, num } = useI18n();
   const router = useRouter();
   const [confirmDel, setConfirmDel] = useState(false);
@@ -52,7 +59,9 @@ function TripDetail() {
   const catches = idx.catchesByTrip.get(trip.id) ?? [];
   const loc = trip.location_id ? idx.locById.get(trip.location_id) : null;
   const tech = trip.technique_id ? idx.techById.get(trip.technique_id) : null;
-  const target = trip.target_species_id ? idx.speciesById.get(trip.target_species_id) : null;
+  const targets = targetsOf(ds, trip);
+  const st = statusOf(trip);
+  const other = activeTrip(ds);
   const hrs = tripHours(trip);
   const gear = ds.trip_equipment.filter((x) => x.trip_id === trip.id).map((x) => ds.equipment.find((e) => e.id === x.equipment_id)).filter(Boolean);
   const media = ds.trip_media.filter((x) => x.trip_id === trip.id);
@@ -96,26 +105,74 @@ function TripDetail() {
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {trip.status === "draft" ? <Badge tone="warn">{t("جارية / مسودة", "In progress / draft")}</Badge> : null}
-        {catches.length > 0 ? (
-          <Badge tone="good">{t(`ناجحة · ${catches.length} سمكة`, `Successful · ${catches.length} fish`)}</Badge>
-        ) : (
-          <Badge>{t("بدون صيد — تُحتسب في الإحصائيات", "No catch — still counted in stats")}</Badge>
-        )}
-        {speciesCount > 1 && <Badge tone="teal">{t(`${speciesCount} أنواع`, `${speciesCount} species`)}</Badge>}
+        <Badge tone={st === "active" ? "warn" : st === "planned" ? "ocean" : st === "cancelled" ? "bad" : "good"}>
+          {{ planned: t("مخططة", "Planned"), active: t("جارية", "Active"), completed: t("منتهية", "Completed"), cancelled: t("ملغاة", "Cancelled") }[st]}
+        </Badge>
+        {st === "active" && <Badge>{t(`منذ ${elapsed(trip.started_at, now, "ar")}`, `for ${elapsed(trip.started_at, now, "en")}`)}</Badge>}
+        {st !== "planned" && st !== "cancelled" && (catches.length > 0 ? <Badge tone="good">{t(`${catches.length} صيدة`, `${catches.length} catches`)}</Badge> : <Badge>{t("بدون صيد", "No catch yet")}</Badge>)}
+        {targets.map((s) => (
+          <Badge key={s} tone="teal">
+            🎯 {name(idx.speciesById.get(s))}
+          </Badge>
+        ))}
         {trip.is_demo && <Badge tone="ocean">{t("تجريبي", "Demo")}</Badge>}
       </div>
 
-      <div className="flex gap-2">
-        <LinkButton href={`/catch/edit?trip=${trip.id}`} variant="teal" size="lg" className="flex-1">
-          <Fish className="size-6" /> {t("سجّل سمكة", "Log a fish")}
-        </LinkButton>
-        {trip.status === "draft" && (
-          <LinkButton href={`/trip/edit?id=${trip.id}`} variant="secondary" size="lg">
-            {t("إنهاء", "Finish")}
+      {st === "planned" && (
+        <div className="flex gap-2">
+          <Button
+            size="lg"
+            variant="teal"
+            className="flex-1"
+            disabled={!!(other && other.id !== trip.id)}
+            onClick={async () => {
+              await startTrip(store, trip);
+              toast(t("بدأت الرحلة — بالتوفيق!", "Trip started — good luck!"));
+            }}
+          >
+            <Play className="size-5" /> {t("ابدأ الرحلة", "Start trip")}
+          </Button>
+          <Button
+            size="lg"
+            variant="ghost"
+            onClick={async () => {
+              if (!confirm(t("إلغاء هذه الرحلة؟ تبقى محفوظة كملغاة.", "Cancel this trip? It stays saved as cancelled."))) return;
+              await cancelTrip(store, trip);
+            }}
+          >
+            {t("إلغاء", "Cancel")}
+          </Button>
+        </div>
+      )}
+      {st === "planned" && other && other.id !== trip.id && (
+        <p className="mt-1 text-xs text-warn">{t("لديك رحلة جارية — أنهِها قبل بدء هذه.", "You have an active trip — finish it before starting this one.")}</p>
+      )}
+      {st === "active" && (
+        <div className="flex gap-2">
+          <LinkButton href={`/catch/edit?trip=${trip.id}`} variant="teal" size="lg" className="flex-1">
+            <Fish className="size-6" /> {t("سجّل صيدة", "Log catch")}
           </LinkButton>
-        )}
-      </div>
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={async () => {
+              await finishTrip(store, trip);
+              toast(t("انتهت الرحلة", "Trip finished"));
+              window.scrollTo({ top: 0 });
+            }}
+          >
+            <Flag className="size-5" /> {t("أنهِ الرحلة", "Finish trip")}
+          </Button>
+        </div>
+      )}
+      {st === "completed" && (
+        <>
+          <TripSummary trip={trip} />
+          <LinkButton href={`/catch/edit?trip=${trip.id}`} variant="secondary" className="mt-2 w-full">
+            <Fish className="size-5" /> {t("إضافة صيدة لهذه الرحلة", "Add a catch to this trip")}
+          </LinkButton>
+        </>
+      )}
 
       <SectionTitle>{t(`الصيد (${catches.length})`, `Catches (${catches.length})`)}</SectionTitle>
       {catches.length ? (
@@ -136,7 +193,11 @@ function TripDetail() {
         <Row k={t("الموقع", "Spot")} v={loc ? `${loc.name}${loc.area ? " · " + loc.area : ""}` : "—"} />
         {trip.lat != null && <Row k="GPS" v={<span className="ltr">{trip.lat}, {trip.lng}</span>} />}
         <Row k={t("الطريقة", "Technique")} v={tech ? name(tech) : "—"} />
-        <Row k={t("المستهدف", "Target")} v={target ? name(target) : "—"} />
+        <Row k={t("المستهدف", "Target")} v={targets.length ? targets.map((x) => name(idx.speciesById.get(x))).join("، ") : "—"} />
+        <Row k={t("العمق المستهدف", "Target depth")} v={trip.target_depth_m != null ? `${trip.target_depth_m}${trip.target_depth_max_m != null ? `–${trip.target_depth_max_m}` : ""} ${t("م", "m")}` : "—"} />
+        {trip.lure_type && <Row k={t("الطُعم / الجك", "Lure / jig")} v={[trip.lure_type, trip.lure_weight_g ? `${trip.lure_weight_g} ${t("غ", "g")}` : null, trip.lure_color, trip.lure_size].filter(Boolean).join(" · ")} />}
+        {trip.trolling_speed_kn != null && <Row k={t("سرعة التشخيط", "Trolling speed")} v={`${trip.trolling_speed_kn} ${t("عقدة", "kn")}`} />}
+        {trip.planned_start_at && <Row k={t("الموعد المخطط", "Planned start")} v={fmtDateTime(trip.planned_start_at, lang)} />}
         <Row k={t("المد والجزر", "Tide")} v={trip.tide ? label(TIDE_LABEL, trip.tide, lang) : <span className="text-muted">{t("غير مسجل", "Not recorded")}</span>} />
         <Row
           k={t("القمر", "Moon")}

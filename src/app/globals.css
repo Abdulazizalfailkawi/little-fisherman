@@ -20,6 +20,8 @@
   --color-good: #34d399;
   --color-warn: #fbbf24;
   --color-bad: #f87171;
+  --color-rise: #2dd4bf; /* سجي */
+  --color-fall: #fb7185; /* ثبر */
 
   --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 

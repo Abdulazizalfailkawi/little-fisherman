@@ -8,12 +8,15 @@ import { I18nProvider } from "@/lib/i18n";
 import { catchesNeedingSnapshot, snapshotCatch } from "@/lib/marine/snapshots";
 import { tripRows } from "@/lib/stats";
 import { BottomNav } from "./BottomNav";
+import { ToastProvider } from "./Toast";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <I18nProvider>
       <StoreProvider>
-        <Shell>{children}</Shell>
+        <ToastProvider>
+          <Shell>{children}</Shell>
+        </ToastProvider>
       </StoreProvider>
     </I18nProvider>
   );

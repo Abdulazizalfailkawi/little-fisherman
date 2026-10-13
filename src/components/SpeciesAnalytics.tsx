@@ -128,9 +128,22 @@ export function SpeciesAnalytics({ sp }: { sp: Species }) {
                     <div className="min-w-0 flex-1 text-xs">
                       <DualDate iso={c.caught_at} override={c.hijri_date_override ?? undefined} className="block text-sm" />
                       <div className="text-ink-2">
-                        {[locId ? idx.locById.get(locId)?.name : null, techId ? name(idx.techById.get(techId)) : null, d ? `${d.depth} m` : null, c.weight_kg != null ? `${c.weight_kg} kg` : null, c.length_cm != null ? `${c.length_cm} cm` : null]
+                        {[locId ? idx.locById.get(locId)?.name : null, techId ? name(idx.techById.get(techId)) : null, c.weight_kg != null ? `${c.weight_kg} ${t("كغ", "kg")}${c.weight_is_estimate ? "≈" : ""}` : null, c.length_cm != null ? `${c.length_cm} ${t("سم", "cm")}${c.length_is_estimate ? "≈" : ""}` : null]
                           .filter(Boolean)
                           .join(" · ")}
+                      </div>
+                      <div className="text-ink-2">
+                        {(() => {
+                          const tr = c.trip_id ? idx.tripById.get(c.trip_id) : undefined;
+                          const planned = tr?.target_depth_m != null ? `${tr.target_depth_m}${tr.target_depth_max_m != null ? `–${tr.target_depth_max_m}` : ""}` : null;
+                          return [
+                            planned || d ? `${t("العمق", "Depth")}: ${planned ? `${t("مخطط", "planned")} ${planned}` : ""}${planned && d ? " / " : ""}${d ? `${t("فعلي", "actual")} ${d.depth}${d.fromTrip ? "*" : ""}` : ""} ${t("م", "m")}` : null,
+                            c.lure_bait ? `${c.lure_bait}${c.lure_weight_g ? ` ${c.lure_weight_g}${t("غ", "g")}` : ""}${c.lure_color ? ` ${c.lure_color}` : ""}` : null,
+                            tr ? `${t("رحلة", "trip")}: ${tr.title || (tr.location_id && idx.locById.get(tr.location_id)?.name) || "—"}` : t("بدون رحلة", "no trip"),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                        })()}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                         {e.moon && (

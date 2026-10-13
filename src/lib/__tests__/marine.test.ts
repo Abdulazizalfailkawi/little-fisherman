@@ -194,7 +194,7 @@ describe("catch summary", () => {
     const idx = buildIndex(ds);
     const c = ds.catches[0];
     const s = catchSummary(ds, idx, c, "en", "kn");
-    expect(s.headline).toMatch(/You caught Balool \(بالول\) on 1 September 2026/);
+    expect(s.headline).toMatch(/You logged Balool \(بالول\) on 1 September 2026 .* using Jigging, on a trip\./);
     expect(s.lines.find((l) => l.label === "Measurements")?.value).toBe("2.1 kg");
     expect(s.lines.find((l) => l.label === "Wind")).toBeUndefined(); // no snapshot -> omitted, not "according to data"
     expect(s.lines.find((l) => l.label === "Moon")?.value).toMatch(/\(calculated\)/);

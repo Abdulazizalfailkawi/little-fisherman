@@ -244,7 +244,7 @@ export function tideFromMarine(marine: Block<MarineHour>): TideBlock {
     official: false,
     datum: "MSL",
     station: null,
-    method: "Local extrema of the hourly modelled sea-level series, refined by parabolic interpolation; minimum range 0.15 m",
+    method: "Local extrema of the hourly modelled sea-level series, refined by parabolic interpolation (min. range 0.15 m); waqfa = |rate| < 5 cm/h around each turn",
     note: MODEL_NOTE,
   };
   if (series.length < 6) return { ...base, status: "unavailable", series: [], extremes: [], error: marine.error ?? "No sea-level values for this location/time" };

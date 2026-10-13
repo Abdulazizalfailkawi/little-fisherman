@@ -40,7 +40,7 @@ function CatchDetail() {
     );
   const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
   const extraPhotos = ds.catch_media.filter((x) => x.catch_id === c.id).sort((a, b) => a.sort_order - b.sort_order).map((x) => x.media_id);
-  const trip = idx.tripById.get(c.trip_id);
+  const trip = idx.tripById.get(c.trip_id ?? "");
   const locId = catchLocation(c, idx);
   const techId = catchTechnique(c, idx);
   const depth = catchDepth(c, idx);
@@ -143,7 +143,34 @@ function CatchDetail() {
           }
         />
         <Row k={t("الحالة", "Kept / released")} v={c.released ? t("أُطلقت", "Released") : t("احتُفظ بها", "Kept")} />
-        <Row k={t("الرحلة", "Trip")} v={trip ? <Link className="text-teal" href={`/trip?id=${trip.id}`}>{trip.title || t("فتح الرحلة", "Open trip")}</Link> : "—"} />
+        <Row
+          k={t("الرحلة", "Trip")}
+          v={
+            trip ? (
+              <Link className="text-teal" href={`/trip?id=${trip.id}`}>
+                {trip.title || (trip.location_id && idx.locById.get(trip.location_id)?.name) || t("فتح الرحلة", "Open trip")}
+              </Link>
+            ) : (
+              <select
+                aria-label={t("اربط برحلة", "Link to a trip")}
+                value=""
+                onChange={(e) => e.target.value && void save("catches", { ...c, trip_id: e.target.value })}
+                className="max-w-48 rounded-lg border border-warn/40 bg-surface-2 px-2 py-1 text-xs text-warn"
+              >
+                <option value="">{t("غير مرتبطة — اربطها برحلة", "Not linked — link to a trip")}</option>
+                {[...ds.trips]
+                  .filter((x) => x.status !== "cancelled")
+                  .sort((a, b) => b.started_at.localeCompare(a.started_at))
+                  .slice(0, 30)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.title || (x.location_id && idx.locById.get(x.location_id)?.name) || t("رحلة", "Trip")} · {fmtDateTime(x.started_at, lang)}
+                    </option>
+                  ))}
+              </select>
+            )
+          }
+        />
         <Row k={t("الموقع", "Spot")} v={locId ? idx.locById.get(locId)?.name : "—"} />
         <Row k={t("الطريقة", "Technique")} v={techId ? name(idx.techById.get(techId)) : "—"} />
         <Row k={t("العمق", "Depth")} v={depth ? `${depth.depth} ${t("م", "m")}${depth.fromTrip ? t(" (من الرحلة)", " (trip)") : ""}` : "—"} />
@@ -157,7 +184,7 @@ function CatchDetail() {
       </Card>
 
       <SectionTitle>{t("الظروف وقت الصيد", "Conditions at catch time")}</SectionTitle>
-      {trip && <EnvPanel trip={trip} c={c} />}
+      <EnvPanel trip={trip ?? null} c={c} />
 
       {c.ai_suggestion && c.species_id && (
         <>
@@ -196,7 +223,7 @@ function CatchDetail() {
             className="flex-1"
             onClick={async () => {
               await remove("catches", c);
-              router.replace(trip ? `/trip?id=${trip.id}` : "/trips");
+              router.replace(trip ? `/trip?id=${trip.id}` : "/catches");
             }}
           >
             {t("حذف", "Delete")}

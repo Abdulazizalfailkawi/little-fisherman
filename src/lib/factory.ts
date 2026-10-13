@@ -4,6 +4,20 @@ import type { Catch, Dataset, Trip } from "./types";
 const ts = () => new Date().toISOString();
 
 /** Most recently used values, so a new trip on the boat needs ~zero typing. */
+/** Catch fields prefilled from the trip's plan (all editable). */
+export function prefillFromTrip(trip: Trip | null): Partial<Catch> {
+  if (!trip) return {};
+  return {
+    location_id: trip.location_id,
+    technique_id: trip.technique_id,
+    depth_m: trip.target_depth_m ?? null,
+    lure_bait: trip.lure_type ?? trip.lure_bait ?? null,
+    lure_weight_g: trip.lure_weight_g ?? null,
+    lure_color: trip.lure_color ?? null,
+    pe_rating: trip.line_pe ?? null,
+  };
+}
+
 export function lastUsed(ds: Dataset) {
   const last = [...ds.trips].sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
   return {
@@ -47,14 +61,14 @@ export function newTrip(partial: Partial<Trip> = {}): Trip {
   };
 }
 
-export function newCatch(trip: Trip, partial: Partial<Catch> = {}): Catch {
+export function newCatch(trip: Trip | null, partial: Partial<Catch> = {}): Catch {
   const now = ts();
   // A catch logged for a past trip defaults to the trip start, not "now".
-  const tripEnded = trip.ended_at && new Date(trip.ended_at).getTime() < Date.now();
-  const caught_at = tripEnded || new Date(trip.started_at).getTime() > Date.now() ? trip.started_at : now;
+  const tripEnded = trip?.ended_at && new Date(trip.ended_at).getTime() < Date.now();
+  const caught_at = trip && (tripEnded || new Date(trip.started_at).getTime() > Date.now()) ? trip.started_at : now;
   return {
     id: uuid(),
-    trip_id: trip.id,
+    trip_id: trip?.id ?? null,
     species_id: null,
     caught_at,
     weight_kg: null,

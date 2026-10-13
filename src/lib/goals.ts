@@ -35,7 +35,7 @@ export function goalProgress(g: Goal, ds: Dataset, idx: Index): GoalProgress {
   const catches = ds.catches.filter((c) => inPeriod(g, c.caught_at));
   const trips = ds.trips.filter((t) => t.status === "completed" && inPeriod(g, t.started_at));
   const target = Number(g.target_value);
-  const techOf = (c: Catch) => c.technique_id ?? idx.tripById.get(c.trip_id)?.technique_id ?? null;
+  const techOf = (c: Catch) => c.technique_id ?? idx.tripById.get(c.trip_id ?? "")?.technique_id ?? null;
 
   const make = (current: number, completedAt: string | null, extra: Partial<GoalProgress> = {}): GoalProgress => ({
     current,

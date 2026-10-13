@@ -9,11 +9,14 @@ import { EquipmentPicker, LocationPicker, SpeciesPicker } from "@/components/pic
 import { Button, Card, Choice, Field, Input, NumberInput, Notice, PageHeader, Select, Textarea, Toggle } from "@/components/ui";
 import { MOON_EMOJI } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
-import { newCatch } from "@/lib/factory";
+import { newCatch, prefillFromTrip } from "@/lib/factory";
 import { MOON_LABEL, TIDE_LABEL, useI18n } from "@/lib/i18n";
-import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
-import { MOON_PHASES, TIDES, type Catch, type IdentificationStatus } from "@/lib/types";
+import { fmtDate, fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
+import { MOON_PHASES, TIDES, isActiveStatus, type Catch, type IdentificationStatus } from "@/lib/types";
 import { validateCatch } from "@/lib/validate";
+import { useToast } from "@/components/Toast";
+import { activeTrip, targetsOf } from "@/lib/trips";
+import { normalizeName } from "@/lib/normalize";
 import { getGps } from "@/lib/gps";
 import { snapshotCatch } from "@/lib/marine/snapshots";
 
@@ -34,7 +37,8 @@ function CatchEdit() {
   const { t, lang, name } = useI18n();
   const router = useRouter();
   const existing = id ? ds.catches.find((c) => c.id === id) : undefined;
-  const trip = idx.tripById.get(existing?.trip_id ?? tripId ?? "");
+  const toast = useToast();
+  const initialTripId = existing ? existing.trip_id : tripId ?? activeTrip(ds)?.id ?? null;
 
   const [c, setC] = useState<Catch | null>(null);
   const [timeIn, setTimeIn] = useState("");
@@ -50,23 +54,25 @@ function CatchEdit() {
   const libRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (c || !trip) return;
+    if (c || !store.ready) return;
     if (id && !existing) return;
-    const base = existing ?? newCatch(trip, { pe_rating: trip.line_pe ?? null, lure_bait: trip.lure_bait ?? null });
+    const t0 = initialTripId ? idx.tripById.get(initialTripId) ?? null : null;
+    const base = existing ?? newCatch(t0, prefillFromTrip(t0));
     setC(base);
     setTimeIn(toLocalInput(base.caught_at));
-    setEquip(ds.catch_equipment.filter((x) => x.catch_id === base.id).map((x) => x.equipment_id));
+    const own = ds.catch_equipment.filter((x) => x.catch_id === base.id).map((x) => x.equipment_id);
+    setEquip(existing ? own : t0 ? ds.trip_equipment.filter((x) => x.trip_id === t0.id).map((x) => x.equipment_id) : []);
     setExtra(ds.catch_media.filter((x) => x.catch_id === base.id).sort((a, b) => a.sort_order - b.sort_order).map((x) => x.media_id));
-  }, [c, trip, id, existing, ds.catch_equipment, ds.catch_media]);
+  }, [c, store.ready, id, existing, initialTripId, idx, ds.catch_equipment, ds.trip_equipment, ds.catch_media]);
 
-  if (!trip)
-    return (
-      <>
-        <PageHeader title={t("تسجيل سمكة", "Log a fish")} back />
-        <Notice tone="warn">{t("الرحلة غير موجودة.", "Trip not found.")}</Notice>
-      </>
-    );
   if (!c) return <PageHeader title="…" back />;
+  const trip = c.trip_id ? idx.tripById.get(c.trip_id) ?? null : null;
+  const quickSpecies = [
+    ...ds.species.filter((s) => normalizeName(s.name_ar) === normalizeName("بالول")).map((s) => s.id),
+    ...(trip ? targetsOf(ds, trip) : []),
+    ...[...ds.catches].sort((a, b) => b.caught_at.localeCompare(a.caught_at)).map((x) => x.species_id).filter((x): x is string => !!x),
+  ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 5);
+  const tripOptions = [...ds.trips].filter((x) => x.status !== "cancelled").sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 30);
 
   const set = <K extends keyof Catch>(k: K, v: Catch[K]) => setC((p) => (p ? { ...p, [k]: v } : p));
 
@@ -117,7 +123,7 @@ function CatchEdit() {
     const next: Catch = { ...c, caught_at: fromLocalInput(timeIn) ?? "" };
     if (!next.species_id && next.identification_status !== "pending_ai") next.identification_status = "unidentified";
     if (next.species_id && next.identification_status === "unidentified") next.identification_status = "manual";
-    const e = validateCatch(next, trip);
+    const e = validateCatch(next, trip ?? undefined);
     if (force) delete e.caught_at;
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -142,6 +148,7 @@ function CatchEdit() {
     if (add.length) await save("catch_equipment", add.map((eid) => ({ catch_id: next.id, equipment_id: eid, created_at: new Date().toISOString() })));
     if (andAnother) {
       const fresh = newCatch(trip, {
+        ...prefillFromTrip(trip),
         species_id: next.species_id,
         pe_rating: next.pe_rating,
         lure_bait: next.lure_bait,
@@ -154,16 +161,20 @@ function CatchEdit() {
       setTimeIn(nowLocalInput());
       setSaving(false);
       window.scrollTo({ top: 0 });
-      router.replace(`/catch/edit?trip=${trip.id}`);
-    } else router.replace(`/trip?id=${trip.id}`);
+      toast(t("تم حفظ الصيدة — سجّل التالية", "Catch saved — log the next one"));
+      router.replace(trip ? `/catch/edit?trip=${trip.id}` : "/catch/edit");
+    } else {
+      toast(existing ? t("تم حفظ التعديل", "Changes saved") : t("تم حفظ الصيدة", "Catch saved"));
+      router.replace(`/catch?id=${next.id}`);
+    }
   };
 
-  const loc = trip.location_id ? idx.locById.get(trip.location_id) : null;
-  const tech = (c.technique_id ?? trip.technique_id) ? idx.techById.get((c.technique_id ?? trip.technique_id)!) : null;
+  const loc = (c.location_id ?? trip?.location_id) ? idx.locById.get((c.location_id ?? trip?.location_id)!) : null;
+  const tech = (c.technique_id ?? trip?.technique_id) ? idx.techById.get((c.technique_id ?? trip?.technique_id)!) : null;
 
   return (
     <>
-      <PageHeader title={existing ? t("تعديل الصيدة", "Edit catch") : t("سمكة جديدة", "New fish")} subtitle={trip.title || loc?.name || undefined} back />
+      <PageHeader title={existing ? t("تعديل الصيدة", "Edit catch") : t("سمكة جديدة", "New fish")} subtitle={trip ? trip.title || loc?.name || undefined : t("غير مرتبطة برحلة", "Not linked to a trip")} back />
 
       <div className="space-y-3">
         <Card className="space-y-3">
@@ -213,7 +224,7 @@ function CatchEdit() {
             <AiPanel
               photoMediaId={c.photo_media_id}
               suggestion={c.ai_suggestion}
-              context={{ location: loc?.name, technique: tech?.name_en, depth_m: c.depth_m ?? trip.water_depth_m ?? undefined }}
+              context={{ location: loc?.name, technique: tech?.name_en, depth_m: c.depth_m ?? trip?.water_depth_m ?? undefined }}
               onSuggestion={(s) => setC((p) => (p ? { ...p, ai_suggestion: s, ai_species_id: null } : p))}
               onPick={(speciesId, status: IdentificationStatus) =>
                 setC((p) =>
@@ -234,6 +245,20 @@ function CatchEdit() {
             <Notice>{t("سيتم تذكيرك بالتعرّف على هذه السمكة عند الاتصال.", "You'll be reminded to identify this fish when online.")}</Notice>
           )}
 
+          {quickSpecies.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickSpecies.map((sid) => (
+                <button
+                  key={sid}
+                  type="button"
+                  onClick={() => setC({ ...c, species_id: sid, identification_status: c.ai_suggestion ? "ai_corrected" : "manual" })}
+                  className={`min-h-11 rounded-xl border px-3.5 text-sm ${c.species_id === sid ? "border-teal bg-teal/15 text-teal" : "border-line bg-surface-2 text-ink-2"}`}
+                >
+                  {name(idx.speciesById.get(sid))}
+                </button>
+              ))}
+            </div>
+          )}
           <Field label={t("النوع", "Species")} hint={c.identification_status.startsWith("ai_") ? t("مؤكد من اقتراح AI", "Confirmed from AI suggestion") : undefined}>
             <SpeciesPicker
               value={c.species_id}
@@ -250,6 +275,17 @@ function CatchEdit() {
         </Card>
 
         <Card className="space-y-4">
+          <Field label={t("الرحلة", "Trip")} hint={!c.trip_id ? t("يمكنك ربطها برحلة لاحقاً", "You can link it to a trip later") : undefined}>
+            <Select
+              value={c.trip_id}
+              onChange={(v) => set("trip_id", v)}
+              placeholder={t("— بدون رحلة —", "— No trip —")}
+              options={tripOptions.map((x) => ({
+                value: x.id,
+                label: `${x.title || (x.location_id && idx.locById.get(x.location_id)?.name) || t("رحلة", "Trip")} · ${fmtDate(x.started_at, lang)}${isActiveStatus(x.status) ? t(" (جارية)", " (active)") : ""}`,
+              }))}
+            />
+          </Field>
           <Field label={t("وقت الصيد (الكويت)", "Catch time (Kuwait)")} error={errText("caught_at")}>
             <div className="flex gap-2">
               <Input type="datetime-local" value={timeIn} onChange={(e) => setTimeIn(e.target.value)} />
@@ -292,7 +328,7 @@ function CatchEdit() {
           <summary className="cursor-pointer list-none font-semibold">⚙️ {t("تفاصيل إضافية (اختياري)", "More details (optional)")}</summary>
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Field label={t("العمق (م)", "Depth (m)")} error={errText("depth_m")}>
+              <Field label={t("العمق الفعلي (م)", "Actual depth (m)")} error={errText("depth_m")}>
                 <NumberInput value={c.depth_m} onChange={(v) => set("depth_m", v)} />
               </Field>
               <Field label="PE" error={errText("pe_rating")}>
@@ -303,6 +339,12 @@ function CatchEdit() {
               </Field>
               <Field label={t("الطُعم / الجك", "Lure / jig / bait")}>
                 <Input value={c.lure_bait ?? ""} onChange={(e) => set("lure_bait", e.target.value || null)} />
+              </Field>
+              <Field label={t("وزن الجك/الطُعم (غ)", "Lure weight (g)")}>
+                <NumberInput value={c.lure_weight_g ?? null} onChange={(v) => set("lure_weight_g", v)} />
+              </Field>
+              <Field label={t("اللون", "Colour")}>
+                <Input value={c.lure_color ?? ""} onChange={(e) => set("lure_color", e.target.value || null)} />
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -10,6 +10,7 @@ import { catchEnv, type Prov } from "./marine/env";
 import { compass, convertWind, windUnitLabel, type WindUnit } from "./marine/units";
 import { catchLocation, catchTechnique, type Index } from "./stats";
 import { fmtDate, fmtTime } from "./time";
+import { targetsOf } from "./trips";
 import type { Catch, Dataset, EnvKind } from "./types";
 
 type Lang = "ar" | "en";
@@ -59,7 +60,7 @@ export function speciesOrdinal(ds: Dataset, c: Catch): number | null {
 export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, windUnit: WindUnit = "kn", hijriOffset = 0): CatchSummary {
   const ar = lang === "ar";
   const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
-  const trip = idx.tripById.get(c.trip_id);
+  const trip = idx.tripById.get(c.trip_id ?? "");
   const locId = catchLocation(c, idx);
   const loc = locId ? idx.locById.get(locId) : null;
   const techId = catchTechnique(c, idx);
@@ -75,9 +76,19 @@ export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, wind
   const time = fmtTime(c.caught_at, lang);
   const place = loc ? (ar ? loc.name : loc.name_en || loc.name) : null;
 
+  const techName = tech ? (ar ? tech.name_ar : tech.name_en) : null;
+  const tripName = trip ? trip.title || null : null;
   const headline = ar
-    ? `صدت ${spName} بتاريخ ${date} (${fmtHijri(hijri, "ar")}) الساعة ${time}${place ? ` في ${place}` : ""}.`
-    : `You caught ${spName} on ${date} (${fmtHijri(hijri, "en")}) at ${time}${place ? ` at ${place}` : ""}.`;
+    ? `سجّلت صيدة ${spName}${place ? ` في ${place}` : ""} بتاريخ ${date} (${fmtHijri(hijri, "ar")}) الساعة ${time}` +
+      (techName ? ` باستخدام ${techName}` : "") +
+      (c.depth_m != null ? ` وعلى عمق ${c.depth_m} متر` : "") +
+      (trip ? `، ضمن ${tripName ? `رحلة «${tripName}»` : "رحلة"}` : "") +
+      "."
+    : `You logged ${spName}${place ? ` at ${place}` : ""} on ${date} (${fmtHijri(hijri, "en")}) at ${time}` +
+      (techName ? ` using ${techName}` : "") +
+      (c.depth_m != null ? ` at ${c.depth_m} m depth` : "") +
+      (trip ? `, on ${tripName ? `the trip “${tripName}”` : "a trip"}` : "") +
+      ".";
 
   const lines: { label: string; value: string }[] = [];
   const add = (labelAr: string, labelEn: string, value: string | null | undefined) => {
@@ -107,6 +118,32 @@ export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, wind
   ].filter(Boolean);
   add("المعدات", "Gear", gear.length ? gear.join(" · ") : null);
   add("طور القمر", "Moon", p(env.moon, (v) => `${MOON_LABEL[v][lang]}${env.moonIllum ? ` · ${env.moonIllum.value}%` : ""}`));
+  // Time relative to the nearest turning point, from the catch's own tide snapshot.
+  const tideRow = env.snapshots.find((r) => r.category === "tide" && r.kind !== "unavailable");
+  const mins = typeof tideRow?.data?.minutes_from_turn === "number" ? (tideRow.data.minutes_from_turn as number) : null;
+  const turnType = tideRow?.data?.nearest_turn_type as "high" | "low" | undefined;
+  if (mins != null && turnType && !env.tidePhase?.kind.startsWith("entered")) {
+    const abs = Math.abs(mins);
+    const hh = Math.floor(abs / 60);
+    const mm = abs % 60;
+    const dur = ar ? `${hh ? `${hh} س ` : ""}${mm} د` : `${hh ? `${hh}h ` : ""}${mm}m`;
+    const ev = turnType === "high" ? (ar ? "أعلى مد" : "high tide") : ar ? "أدنى جزر" : "low tide";
+    const inW = tideRow?.data?.in_waqfa === true;
+    add(
+      "توقيت المد",
+      "Tide timing",
+      (inW ? (ar ? "خلال الوقفة — " : "during the waqfa — ") : "") + (mins < 0 ? (ar ? `قبل ${ev} بـ ${dur}` : `${dur} before ${ev}`) : ar ? `بعد ${ev} بـ ${dur}` : `${dur} after ${ev}`) + tag(tideRow!.kind, lang),
+    );
+  }
+  if (trip) {
+    const tg = targetsOf(ds, trip);
+    if (tg.length)
+      add(
+        "المستهدف في الرحلة",
+        "Trip target",
+        tg.map((x) => (ar ? idx.speciesById.get(x)?.name_ar : idx.speciesById.get(x)?.name_en || idx.speciesById.get(x)?.name_ar) ?? "").join("، "),
+      );
+  }
   add("المد والجزر", "Tide", p(env.tidePhase, (v) => TIDE_LABEL[v][lang]) && `${p(env.tidePhase, (v) => TIDE_LABEL[v][lang])}${env.tideHeight ? ` · ${env.tideHeight.value} ${ar ? "م" : "m"} MSL` : ""}`);
   add(
     "الرياح",

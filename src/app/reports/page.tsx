@@ -48,9 +48,8 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader section="stats"
         title={t("تقارير الصيد", "Fishing reports")}
-        back="/more"
         actions={
           <Button size="sm" variant="secondary" onClick={() => window.print()} aria-label="print">
             <Printer className="size-4" />

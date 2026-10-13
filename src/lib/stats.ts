@@ -53,6 +53,7 @@ export interface Index {
 export function buildIndex(ds: Dataset): Index {
   const catchesByTrip = new Map<string, Catch[]>();
   for (const c of ds.catches) {
+    if (!c.trip_id) continue; // stand-alone catch, not part of any trip
     const arr = catchesByTrip.get(c.trip_id);
     if (arr) arr.push(c);
     else catchesByTrip.set(c.trip_id, [c]);
@@ -70,21 +71,22 @@ export function buildIndex(ds: Dataset): Index {
 
 /** Technique / location of a catch: its own value, else the trip's. */
 export function catchTechnique(c: Catch, idx: Index): string | null {
-  return c.technique_id ?? idx.tripById.get(c.trip_id)?.technique_id ?? null;
+  return c.technique_id ?? idx.tripById.get(c.trip_id ?? "")?.technique_id ?? null;
 }
 export function catchLocation(c: Catch, idx: Index): string | null {
-  return c.location_id ?? idx.tripById.get(c.trip_id)?.location_id ?? null;
+  return c.location_id ?? idx.tripById.get(c.trip_id ?? "")?.location_id ?? null;
 }
 export function catchDepth(c: Catch, idx: Index): { depth: number; fromTrip: boolean } | null {
   if (c.depth_m != null) return { depth: c.depth_m, fromTrip: false };
-  const t = idx.tripById.get(c.trip_id)?.water_depth_m;
+  const t = idx.tripById.get(c.trip_id ?? "")?.water_depth_m;
   return t != null ? { depth: t, fromTrip: true } : null;
 }
 
 export function tripRows(ds: Dataset, idx: Index, f: Filters = {}, hijriOffset = 0, includeDrafts = false): TripRow[] {
   const rows: TripRow[] = [];
   for (const trip of ds.trips) {
-    if (!includeDrafts && trip.status === "draft") continue;
+    // Statistics use completed trips only; planned/active/cancelled are listed elsewhere.
+    if (!includeDrafts && trip.status !== "completed") continue;
     const day = dateKey(trip.started_at);
     if (f.from && day < f.from) continue;
     if (f.to && day > f.to) continue;

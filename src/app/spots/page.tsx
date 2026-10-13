@@ -18,9 +18,8 @@ export default function SpotsPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader section="trips"
         title={t("مواقع الصيد", "Fishing spots")}
-        back="/more"
         actions={
           <Button size="sm" onClick={() => setEdit("new")} aria-label="add">
             <Plus className="size-5" />

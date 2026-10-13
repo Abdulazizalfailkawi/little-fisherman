@@ -36,7 +36,7 @@ export default function RecordsPage() {
   if (!ds.catches.length && !rows.length)
     return (
       <>
-        <PageHeader title={t("الأرقام القياسية", "Personal records")} back="/more" />
+        <PageHeader section="stats" title={t("الأرقام القياسية", "Personal records")} />
         <Empty icon="🏆" title={t("لا توجد أرقام بعد", "No records yet")} />
       </>
     );
@@ -54,7 +54,7 @@ export default function RecordsPage() {
 
   return (
     <>
-      <PageHeader title={t("الأرقام القياسية", "Personal records")} back="/more" />
+      <PageHeader section="stats" title={t("الأرقام القياسية", "Personal records")} />
 
       <SectionTitle>{t("الأسماك", "Fish")}</SectionTitle>
       <div className="space-y-2">

@@ -10,6 +10,7 @@ import { effectiveMoonPhase } from "./astro";
 import { tripEnv } from "./marine/env";
 import { MIN_SAMPLE, type Index } from "./stats";
 import { kwParts } from "./time";
+import { targetsOf } from "./trips";
 import type { Dataset, Trip } from "./types";
 
 export interface RateGroup {
@@ -111,7 +112,7 @@ export interface SpeciesTargetAnalytics {
 
 export function speciesTargetAnalytics(ds: Dataset, idx: Index, speciesId: string, filter?: (t: Trip) => boolean): SpeciesTargetAnalytics {
   const targets: TT[] = ds.trips
-    .filter((t) => t.status === "completed" && t.target_species_id === speciesId && (!filter || filter(t)))
+    .filter((t) => t.status === "completed" && targetsOf(ds, t).includes(speciesId) && (!filter || filter(t)))
     .map((trip) => ({ trip, fish: (idx.catchesByTrip.get(trip.id) ?? []).filter((c) => c.species_id === speciesId).length }));
   const targetIds = new Set(targets.map((t) => t.trip.id));
   const allOfSpecies = ds.catches.filter((c) => c.species_id === speciesId);
@@ -123,8 +124,8 @@ export function speciesTargetAnalytics(ds: Dataset, idx: Index, speciesId: strin
     successful,
     unsuccessful: targets.length - successful,
     rate: targets.length ? successful / targets.length : null,
-    fishOnTargetTrips: allOfSpecies.filter((c) => targetIds.has(c.trip_id)).length,
-    fishOnOtherTrips: allOfSpecies.filter((c) => !targetIds.has(c.trip_id)).length,
+    fishOnTargetTrips: allOfSpecies.filter((c) => targetIds.has(c.trip_id ?? "")).length,
+    fishOnOtherTrips: allOfSpecies.filter((c) => !targetIds.has(c.trip_id ?? "")).length,
     byTechnique: breakdown(targets, (t) => t.trip.technique_id),
     byTimeOfDay: breakdown(targets, (t) => timeBucket(kwParts(t.trip.started_at).hour)),
     byTide: breakdown(targets, (t) => env.get(t.trip.id)?.tidePhase?.value ?? null),

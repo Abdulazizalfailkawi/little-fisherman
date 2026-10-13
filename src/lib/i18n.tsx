@@ -75,10 +75,10 @@ export function useI18n(): I18n {
 type L = { ar: string; en: string };
 
 export const TIDE_LABEL: Record<Tide, L> = {
-  high: { ar: "مد عالي", en: "High tide" },
-  rising: { ar: "مد صاعد", en: "Rising tide" },
-  falling: { ar: "جزر نازل", en: "Falling tide" },
-  low: { ar: "جزر منخفض", en: "Low tide" },
+  high: { ar: "وقفة أعلى المد", en: "High-water slack" },
+  rising: { ar: "سجي", en: "Rising (Saji)" },
+  falling: { ar: "ثبر", en: "Falling (Thabr)" },
+  low: { ar: "وقفة أدنى الجزر", en: "Low-water slack" },
 };
 
 export const MOON_LABEL: Record<MoonPhase, L> = {

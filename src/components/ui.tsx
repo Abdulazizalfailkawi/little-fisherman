@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
+import { SectionTabs } from "./SectionTabs";
 import { SyncBadge } from "./SyncBadge";
 
 export function cn(...c: (string | false | null | undefined)[]) {
@@ -105,11 +106,14 @@ export function PageHeader({
   subtitle,
   back,
   actions,
+  section,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   back?: string | true;
   actions?: ReactNode;
+  /** show the secondary tabs of a primary section under the title */
+  section?: "trips" | "stats";
 }) {
   const router = useRouter();
   const { dir } = useI18n();
@@ -133,6 +137,7 @@ export function PageHeader({
         <SyncBadge />
         {actions}
       </div>
+      {section && <SectionTabs section={section} />}
     </header>
   );
 }

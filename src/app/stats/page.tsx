@@ -1,398 +1,152 @@
 "use client";
 
+// إحصائياتي — personal fishing profile. Every number is derived from the saved
+// records each render, so edits and deletions are reflected immediately.
+
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Download, Info } from "lucide-react";
-import { Bars, InlineBar } from "@/components/charts";
+import { Fish, MapPin, Ruler, Sailboat, Scale, Target, Wrench } from "lucide-react";
+import { CatchRow, TripCard } from "@/components/common";
 import { FilterBar } from "@/components/Filters";
-import { Badge, Button, Card, Empty, N, Notice, PageHeader, SectionTitle, Stat, cn } from "@/components/ui";
-import { MOON_EMOJI } from "@/lib/astro";
-import { download } from "@/lib/backup";
-import { statsCSV } from "@/lib/csv";
+import { Badge, Card, Empty, LinkButton, N, PageHeader, SectionTitle, Stat } from "@/components/ui";
 import { useStore } from "@/lib/db/store";
-import { MOON_LABEL, SEA_LABEL, TIDE_LABEL, useI18n } from "@/lib/i18n";
-import {
-  MIN_SAMPLE,
-  byHour,
-  byLocation,
-  byMonthKey,
-  byMonthOfYear,
-  byMoon,
-  bySeaState,
-  byTechnique,
-  byTide,
-  byWeekday,
-  catchTechnique,
-  groupRows,
-  depthBySpecies,
-  pct,
-  speciesCounts,
-  summarize,
-  tripRows,
-  type Filters,
-  type GroupStat,
-} from "@/lib/stats";
-import { fmtMonthName, fmtWeekday, todayKey } from "@/lib/time";
-import { MOON_PHASES, type MoonPhase, type SeaState, type Tide } from "@/lib/types";
-import { tripEnv } from "@/lib/marine/env";
-import { DEPTH_BUCKETS, WAVE_BUCKETS, WIND_BUCKETS_KN, depthBucket, waveBucket, windBucketKn } from "@/lib/speciesAnalytics";
+import { useI18n } from "@/lib/i18n";
+import { byLocation, byTechnique, catchLocation, catchTechnique, pct, speciesCounts, summarize, tripRows, type Filters } from "@/lib/stats";
+import { dateKey } from "@/lib/time";
 
-function GroupTable({ groups, labelOf, missing, missingLabel }: { groups: GroupStat[]; labelOf: (k: string) => React.ReactNode; missing?: number; missingLabel?: string }) {
-  const { t, num } = useI18n();
-  const max = Math.max(0, ...groups.map((g) => g.catchesPerTrip ?? 0));
-  const sorted = [...groups].sort((a, b) => b.trips - a.trips);
-  return (
-    <Card className="overflow-x-auto p-0">
-      <table className="w-full text-sm">
-        <thead className="text-xs text-muted">
-          <tr className="border-b border-line/50">
-            <th className="p-2.5 text-start font-medium">{t("الفئة", "Group")}</th>
-            <th className="p-2.5 font-medium">{t("رحلات", "Trips")}</th>
-            <th className="p-2.5 font-medium">{t("نجاح الرحلات", "Trip success")}</th>
-            <th className="p-2.5 font-medium">{t("سمك/رحلة", "Fish/trip")}</th>
-            <th className="p-2.5 font-medium">{t("سمك/ساعة", "Fish/hr")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((g) => (
-            <tr key={g.key} className={cn("border-b border-line/30", !g.sufficient && "text-ink-2/70")}>
-              <td className="p-2.5">
-                <div className="font-medium">{labelOf(g.key)}</div>
-                {!g.sufficient && <div className="text-[10px] text-warn">{t("عينة صغيرة", "small sample")}</div>}
-              </td>
-              <td className="p-2.5 text-center">{g.trips}</td>
-              <td className="p-2.5 text-center">
-                {pct(g.successRate)}
-                <div className="text-[10px] text-muted">
-                  {g.successful}/{g.trips}
-                </div>
-              </td>
-              <td className="w-28 p-2.5 text-center">
-                {num(g.catchesPerTrip, 2)}
-                <InlineBar value={g.catchesPerTrip ?? 0} max={max} weak={!g.sufficient} />
-              </td>
-              <td className="p-2.5 text-center">
-                {g.catchesPerHour != null ? num(g.catchesPerHour, 2) : "—"}
-                {g.tripsWithHours < g.trips && <div className="text-[10px] text-muted">{t(`${g.tripsWithHours} بتوقيت`, `${g.tripsWithHours} timed`)}</div>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {missing ? <p className="px-3 py-2 text-xs text-muted">{missingLabel?.replace("{n}", String(missing))}</p> : null}
-    </Card>
-  );
-}
-
-/** One-line plain answer that respects sample size and avoids causal claims. */
-function Compare({ a, b, labelA, labelB }: { a?: GroupStat; b?: GroupStat; labelA: string; labelB: string }) {
-  const { t } = useI18n();
-  if (!a || !b || a.trips < MIN_SAMPLE || b.trips < MIN_SAMPLE)
-    return (
-      <Notice>
-        {t(
-          `لا توجد بيانات كافية للمقارنة بين ${labelA} و${labelB} (يلزم ${MIN_SAMPLE} رحلات على الأقل لكل منهما؛ لديك ${a?.trips ?? 0} و${b?.trips ?? 0}).`,
-          `Not enough data to compare ${labelA} and ${labelB} (needs at least ${MIN_SAMPLE} trips each; you have ${a?.trips ?? 0} and ${b?.trips ?? 0}).`,
-        )}
-      </Notice>
-    );
-  const better = (a.successRate ?? 0) >= (b.successRate ?? 0) ? [a, labelA, b, labelB] : [b, labelB, a, labelA];
-  const [ga, la, gb, lb] = better as [GroupStat, string, GroupStat, string];
-  const close = Math.abs((ga.successRate ?? 0) - (gb.successRate ?? 0)) < 0.1;
-  return (
-    <Notice>
-      {close
-        ? t(
-            `في سجلاتك، نسبة النجاح متقاربة: ${la} ${pct(ga.successRate)} (ع=${ga.trips}) مقابل ${lb} ${pct(gb.successRate)} (ع=${gb.trips}).`,
-            `In your records success rates are similar: ${la} ${pct(ga.successRate)} (n=${ga.trips}) vs ${lb} ${pct(gb.successRate)} (n=${gb.trips}).`,
-          )
-        : t(
-            `في سجلاتك، رحلات ${la} نجحت بنسبة ${pct(ga.successRate)} (ع=${ga.trips}) مقابل ${pct(gb.successRate)} لرحلات ${lb} (ع=${gb.trips}). هذا ارتباط في بياناتك وليس دليلاً على السبب.`,
-            `In your records, ${la} trips succeeded ${pct(ga.successRate)} of the time (n=${ga.trips}) vs ${pct(gb.successRate)} for ${lb} (n=${gb.trips}). This is a pattern in your data, not proof of cause.`,
-          )}
-    </Notice>
-  );
-}
-
-export default function StatsPage() {
+export default function ProfilePage() {
   const { ds, idx, hijriOffset } = useStore();
-  const { t, lang, name, num } = useI18n();
+  const { t, name, num, lang } = useI18n();
   const [f, setF] = useState<Filters>({});
 
   const rows = useMemo(() => tripRows(ds, idx, f, hijriOffset), [ds, idx, f, hijriOffset]);
   const s = summarize(rows);
-  const catches = rows.flatMap((r) => r.catches);
-  const tech = byTechnique(rows);
-  const locs = byLocation(rows);
-  const tide = byTide(rows);
-  const sea = bySeaState(rows);
-  const moon = byMoon(rows);
-  const wd = byWeekday(rows).groups;
-  const moy = byMonthOfYear(rows).groups;
-  const timeline = byMonthKey(rows).groups.sort((a, b) => a.key.localeCompare(b.key));
-  const hours = byHour(rows);
-  const depth = depthBySpecies(catches, idx);
-  const spc = speciesCounts(catches);
-  const jig = tech.groups.find((g) => idx.techById.get(g.key)?.code === "jigging");
-  const trol = tech.groups.find((g) => idx.techById.get(g.key)?.code === "trolling");
-  const calcMoon = rows.filter((r) => r.moon.calculated).length;
-  const envByTrip = useMemo(() => new Map(rows.map((r) => [r.trip.id, tripEnv(ds, r.trip)])), [rows, ds]);
-  const windG = groupRows(rows, (r) => {
-    const w = envByTrip.get(r.trip.id)?.wind;
-    return w ? windBucketKn(w.value) : null;
-  });
-  const waveG = groupRows(rows, (r) => {
-    const w = envByTrip.get(r.trip.id)?.wave;
-    return w ? waveBucket(w.value) : null;
-  });
-  const depthG = groupRows(rows, (r) => (r.trip.water_depth_m != null ? depthBucket(r.trip.water_depth_m) : null));
-  const order = (keys: readonly string[]) => (a: GroupStat, b: GroupStat) => keys.indexOf(a.key) - keys.indexOf(b.key);
-
-  // Species x technique (what works for each species)
-  const spTech = useMemo(() => {
-    const m = new Map<string, Map<string, number>>();
-    for (const c of catches) {
-      if (!c.species_id) continue;
-      const tk = catchTechnique(c, idx) ?? "none";
-      const inner = m.get(c.species_id) ?? new Map();
-      inner.set(tk, (inner.get(tk) ?? 0) + 1);
-      m.set(c.species_id, inner);
-    }
-    return [...m.entries()].map(([sid, inner]) => ({ sid, list: [...inner.entries()].sort((a, b) => b[1] - a[1]), total: [...inner.values()].reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total);
-  }, [catches, idx]);
-
-  // Equipment performance
-  const gear = useMemo(() => {
-    return ds.equipment
-      .map((e) => {
-        const tripIds = new Set(ds.trip_equipment.filter((x) => x.equipment_id === e.id).map((x) => x.trip_id));
-        const catchIds = new Set(ds.catch_equipment.filter((x) => x.equipment_id === e.id).map((x) => x.catch_id));
-        const rs = rows.filter((r) => tripIds.has(r.trip.id));
-        const sm = summarize(rs);
-        const extra = catches.filter((c) => catchIds.has(c.id) && !tripIds.has(c.trip_id)).length;
-        return { e, sm, fish: sm.catches + extra };
-      })
-      .filter((x) => x.sm.trips > 0 || x.fish > 0)
-      .sort((a, b) => b.fish - a.fish);
-  }, [ds, rows, catches]);
-
-  if (!ds.trips.length)
-    return (
-      <>
-        <PageHeader title={t("الإحصائيات", "Analytics")} />
-        <Empty icon="📊" title={t("لا توجد بيانات بعد", "No data yet")}>
-          {t("سجّل بعض الرحلات لرؤية التحليلات.", "Log some trips to see analytics.")}
-        </Empty>
-      </>
-    );
+  const allTrips = ds.trips.filter((x) => x.status !== "cancelled");
+  const catches = useMemo(
+    () =>
+      ds.catches.filter((c) => {
+        const d = dateKey(c.caught_at);
+        if (f.from && d < f.from) return false;
+        if (f.to && d > f.to) return false;
+        if (f.speciesId && c.species_id !== f.speciesId) return false;
+        if (f.techniqueId && catchTechnique(c, idx) !== f.techniqueId) return false;
+        if (f.locationId && catchLocation(c, idx) !== f.locationId) return false;
+        return true;
+      }),
+    [ds.catches, f, idx],
+  );
+  const sp = speciesCounts(catches).filter((x) => x.speciesId);
+  const heaviest = [...catches].filter((c) => c.weight_kg != null).sort((a, b) => Number(a.weight_is_estimate) - Number(b.weight_is_estimate) || b.weight_kg! - a.weight_kg!)[0];
+  const longest = [...catches].filter((c) => c.length_cm != null).sort((a, b) => Number(a.length_is_estimate) - Number(b.length_is_estimate) || b.length_cm! - a.length_cm!)[0];
+  const locs = byLocation(rows).groups.filter((g) => g.trips >= 3).sort((a, b) => (b.catchesPerTrip ?? 0) - (a.catchesPerTrip ?? 0));
+  const tech = byTechnique(rows).groups.sort((a, b) => b.trips - a.trips)[0];
+  const recentTrips = [...ds.trips].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 4);
+  const recentCatches = [...catches].sort((a, b) => b.caught_at.localeCompare(a.caught_at)).slice(0, 5);
+  const balool = ds.species.find((x) => x.name_ar === "بالول");
 
   return (
     <>
-      <PageHeader
-        title={t("الإحصائيات", "Analytics")}
-        actions={
-          <Button size="sm" variant="secondary" onClick={() => download(`fishing-stats-${todayKey()}.csv`, statsCSV(rows, idx), "text/csv")} aria-label="export csv">
-            <Download className="size-4" />
-          </Button>
-        }
-      />
-      <FilterBar value={f} onChange={setF} />
-      <Notice className="mt-3">
-        <Info className="me-1 inline size-4" />
-        {t(
-          `كل النسب محسوبة من رحلاتك المنتهية بما فيها الرحلات بدون صيد، مع حجم العينة (ع). الفئات بأقل من ${MIN_SAMPLE} رحلات معلّمة كعينة صغيرة. الأنماط هنا ارتباطات في بياناتك وليست أسباباً.`,
-          `All rates use your completed trips including blank ones, with sample size (n). Groups with fewer than ${MIN_SAMPLE} trips are marked as small samples. Patterns here are correlations in your data, not causes.`,
-        )}
-      </Notice>
+      <PageHeader title={t("إحصائياتي", "My stats")} section="stats" />
+      <FilterBar value={f} onChange={setF} fields={["date", "species", "location", "technique"]} />
 
-      {rows.length === 0 ? (
+      {!ds.trips.length && !ds.catches.length ? (
         <div className="mt-6">
-          <Empty icon="🔍" title={t("لا توجد رحلات تطابق التصفية", "No trips match these filters")} />
+          <Empty icon="📊" title={t("لا توجد سجلات بعد", "No records yet")} action={<LinkButton href="/trip/edit">{t("رحلة جديدة", "New trip")}</LinkButton>}>
+            {t("ستظهر هنا إحصائياتك من رحلاتك وصيدك الحقيقي.", "Your statistics from real trips and catches will appear here.")}
+          </Empty>
         </div>
       ) : (
         <>
-          <SectionTitle>{t("الأداء العام", "Overall")}</SectionTitle>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Stat label={t("نسبة نجاح الرحلات", "Trip success rate")} value={pct(s.successRate)} sub={t(`${s.successful} من ${s.trips} رحلة`, `${s.successful} of ${s.trips} trips`)} />
-            <Stat label={t(f.speciesId ? "عدد هذا النوع" : "عدد الأسماك", f.speciesId ? "Fish of this species" : "Fish caught")} value={s.catches} sub={t(`${s.speciesCount} نوع`, `${s.speciesCount} species`)} />
-            <Stat label={t("متوسط السمك لكل رحلة", "Avg fish per trip")} value={num(s.catchesPerTrip, 2)} sub={<N n={s.trips} />} />
-            <Stat
-              label={t("سمك لكل ساعة صيد", "Fish per fishing hour")}
-              value={s.catchesPerHour != null ? num(s.catchesPerHour, 2) : "—"}
-              sub={t(`${num(s.hours, 0)} ساعة من ${s.tripsWithHours} رحلة بتوقيت كامل`, `${num(s.hours, 0)} h over ${s.tripsWithHours} timed trips`)}
-            />
-            <Stat label={t("رحلات بدون صيد", "Blank trips")} value={s.blank} sub={t("محسوبة في كل النسب", "included in every rate")} />
+          <SectionTitle>{t("الرحلات", "Trips")}</SectionTitle>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Stat icon={<Sailboat className="size-3.5" />} label={t("كل الرحلات", "All trips")} value={allTrips.length} sub={t("بدون الملغاة", "excl. cancelled")} />
+            <Stat label={t("منتهية", "Completed")} value={s.trips} />
+            <Stat label={t("ناجحة", "Successful")} value={s.successful} sub={t(`نسبة ${pct(s.successRate)}`, `${pct(s.successRate)} rate`)} />
+            <Stat label={t("بدون صيد", "No catch")} value={s.blank} />
           </div>
 
-          <SectionTitle>{t("الجيقنق أم الترولنق؟", "Jigging or trolling?")}</SectionTitle>
-          <Compare a={jig} b={trol} labelA={t("الجيقنق", "jigging")} labelB={t("الترولنق", "trolling")} />
-
-          <SectionTitle>{t("حسب الطريقة", "By technique")}</SectionTitle>
-          <GroupTable groups={tech.groups} labelOf={(k) => name(idx.techById.get(k))} missing={tech.missing} missingLabel={t("{n} رحلة بدون طريقة محددة", "{n} trips without a technique")} />
-
-          <SectionTitle>{t("حسب الموقع", "By spot")}</SectionTitle>
-          <GroupTable groups={locs.groups} labelOf={(k) => idx.locById.get(k)?.name ?? "?"} missing={locs.missing} missingLabel={t("{n} رحلة بدون موقع", "{n} trips without a spot")} />
-
-          <SectionTitle>{t("أيام الأسبوع — عدد الأسماك", "Day of week — fish caught")}</SectionTitle>
-          <Card>
-            <Bars
-              data={Array.from({ length: 7 }, (_, d) => {
-                const g = wd.find((x) => x.key === String(d));
-                return {
-                  label: fmtWeekday(d, lang, "short"),
-                  value: g?.catches ?? 0,
-                  weak: (g?.trips ?? 0) < MIN_SAMPLE,
-                  detail: g ? t(`${g.trips} رحلة · ${num(g.catchesPerTrip, 2)} لكل رحلة · نجاح ${pct(g.successRate)}`, `${g.trips} trips · ${num(g.catchesPerTrip, 2)}/trip · ${pct(g.successRate)} success`) : t("لا رحلات", "no trips"),
-                };
-              })}
+          <SectionTitle>{t("الصيد", "Catches")}</SectionTitle>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <Stat icon={<Fish className="size-3.5" />} label={t("إجمالي الصيدات", "Total catches")} value={catches.length} sub={t(`${num(s.catchesPerTrip, 2)} لكل رحلة منتهية`, `${num(s.catchesPerTrip, 2)} per completed trip`)} />
+            <Stat label={t("أنواع مختلفة", "Unique species")} value={new Set(catches.map((c) => c.species_id).filter(Boolean)).size} />
+            <Stat
+              label={t("الأكثر صيداً", "Most caught")}
+              value={<span className="text-lg">{sp[0] ? name(idx.speciesById.get(sp[0].speciesId!)) : "—"}</span>}
+              sub={sp[0] ? `×${sp[0].count}` : undefined}
             />
-            <p className="mt-2 text-xs text-muted">{t("الأعمدة الباهتة: أقل من ٥ رحلات. الأيام التي تخرج فيها أكثر ستُظهر أسماكاً أكثر بطبيعة الحال — راجع «لكل رحلة» في التلميح.", "Faded bars: fewer than 5 trips. Days you fish more will naturally show more fish — check “per trip” in the tooltip.")}</p>
-          </Card>
-
-          <SectionTitle>{t("الساعات — سمك لكل ساعة صيد", "Hour of day — fish per fishing hour")}</SectionTitle>
-          <Card>
-            <Bars
-              data={hours
-                .filter((h) => h.exposureHours > 0 || h.catches > 0)
-                .map((h) => ({
-                  label: String(h.hour).padStart(2, "0"),
-                  value: h.rate,
-                  weak: h.exposureHours < 3,
-                  detail: t(`${h.catches} سمكة · ${num(h.exposureHours)} ساعة صيد`, `${h.catches} fish · ${num(h.exposureHours)} h fished`),
-                }))}
+            <Stat
+              icon={<Scale className="size-3.5" />}
+              label={t("أثقل سمكة", "Heaviest")}
+              value={heaviest ? `${heaviest.weight_kg} ${t("كغ", "kg")}` : "—"}
+              sub={heaviest ? `${name(heaviest.species_id ? idx.speciesById.get(heaviest.species_id) : null)}${heaviest.weight_is_estimate ? t(" (تقديري)", " (est.)") : ""}` : t("لا أوزان مسجلة", "no weights recorded")}
             />
-            <p className="mt-2 text-xs text-muted">{t("مُعدّل حسب الوقت الذي قضيته فعلاً في الصيد في كل ساعة (للرحلات ذات وقت بداية ونهاية).", "Normalised by the time you actually spent fishing in each hour (trips with start and end times).")}</p>
-          </Card>
-
-          <SectionTitle>{t("الأشهر — سمك لكل رحلة", "Months — fish per trip")}</SectionTitle>
-          <Card>
-            <Bars
-              data={Array.from({ length: 12 }, (_, i) => {
-                const g = moy.find((x) => x.key === String(i + 1));
-                return {
-                  label: fmtMonthName(i + 1, lang, "short"),
-                  value: g?.catchesPerTrip ?? null,
-                  weak: (g?.trips ?? 0) < MIN_SAMPLE,
-                  detail: g ? t(`${g.trips} رحلة · ${g.catches} سمكة`, `${g.trips} trips · ${g.catches} fish`) : t("لا رحلات", "no trips"),
-                };
-              })}
+            <Stat
+              icon={<Ruler className="size-3.5" />}
+              label={t("أطول سمكة", "Longest")}
+              value={longest ? `${longest.length_cm} ${t("سم", "cm")}` : "—"}
+              sub={longest ? `${name(longest.species_id ? idx.speciesById.get(longest.species_id) : null)}${longest.length_is_estimate ? t(" (تقديري)", " (est.)") : ""}` : t("لا أطوال مسجلة", "no lengths recorded")}
             />
-          </Card>
+            <Stat
+              icon={<MapPin className="size-3.5" />}
+              label={t("أكثر موقع إنتاجاً", "Most productive spot")}
+              value={<span className="text-lg">{locs[0] ? idx.locById.get(locs[0].key)?.name : "—"}</span>}
+              sub={locs[0] ? <>{num(locs[0].catchesPerTrip, 2)} {t("سمكة/رحلة", "fish/trip")} <N n={locs[0].trips} /></> : t("يحتاج ٣ رحلات على الأقل لموقع", "needs 3+ trips at a spot")}
+            />
+            <Stat
+              icon={<Wrench className="size-3.5" />}
+              label={t("أكثر طريقة استخداماً", "Most used technique")}
+              value={<span className="text-lg">{tech ? name(idx.techById.get(tech.key)) : "—"}</span>}
+              sub={tech ? t(`${tech.trips} رحلة · نجاح ${pct(tech.successRate)}`, `${tech.trips} trips · ${pct(tech.successRate)} success`) : undefined}
+            />
+          </div>
 
-          {timeline.length > 1 && (
+          {balool && (
+            <Link href={`/species?id=${balool.id}`} className="mt-3 flex items-center justify-between rounded-[var(--radius-card)] border border-teal/30 bg-teal/5 p-4">
+              <span className="flex items-center gap-2 font-semibold">
+                <Target className="size-5 text-teal" /> {t("صفحة البالول", "Balool page")}
+              </span>
+              <Badge tone="teal">×{ds.catches.filter((c) => c.species_id === balool.id).length}</Badge>
+            </Link>
+          )}
+
+          {sp.length > 0 && (
             <>
-              <SectionTitle>{t("الخط الزمني — الأسماك شهرياً", "Timeline — fish per month")}</SectionTitle>
-              <Card>
-                <Bars data={timeline.map((g) => ({ label: g.key.slice(2), value: g.catches, detail: t(`${g.trips} رحلة · نجاح ${pct(g.successRate)}`, `${g.trips} trips · ${pct(g.successRate)} success`) }))} />
-              </Card>
+              <SectionTitle action={<Link className="text-sm text-teal" href="/collection">{t("كل الأنواع", "All species")}</Link>}>{t("أنواعي", "My species")}</SectionTitle>
+              <div className="flex flex-wrap gap-2">
+                {sp.slice(0, 10).map((x) => (
+                  <Link key={x.speciesId} href={`/species?id=${x.speciesId}`}>
+                    <Badge className="py-1.5 text-sm">
+                      {name(idx.speciesById.get(x.speciesId!))} ×{x.count}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
             </>
           )}
 
-          <SectionTitle>{t("أطوار القمر", "Moon phases")}</SectionTitle>
-          <GroupTable groups={moon.groups.sort((a, b) => MOON_PHASES.indexOf(a.key as MoonPhase) - MOON_PHASES.indexOf(b.key as MoonPhase))} labelOf={(k) => `${MOON_EMOJI[k as MoonPhase]} ${MOON_LABEL[k as MoonPhase][lang]}`} />
-          <p className="mt-1 px-1 text-xs text-muted">{t(`${calcMoon} من ${rows.length} رحلة تستخدم الطور المحسوب فلكياً (لم يُدخل يدوياً).`, `${calcMoon} of ${rows.length} trips use the astronomically calculated phase (not entered manually).`)}</p>
-
-          <SectionTitle>{t("المد والجزر (المسجل فقط)", "Tide (recorded only)")}</SectionTitle>
-          <GroupTable groups={tide.groups} labelOf={(k) => TIDE_LABEL[k as Tide][lang]} missing={tide.missing} missingLabel={t("{n} رحلة بدون مد/جزر مسجل — مستبعدة، لا نخمّنها", "{n} trips have no recorded tide — excluded, never guessed")} />
-
-          <SectionTitle>{t("حالة البحر (المسجلة فقط)", "Sea state (recorded only)")}</SectionTitle>
-          <GroupTable groups={sea.groups} labelOf={(k) => SEA_LABEL[k as SeaState][lang]} missing={sea.missing} missingLabel={t("{n} رحلة بدون حالة بحر مسجلة", "{n} trips without a recorded sea state")} />
-
-          <SectionTitle>{t("الرياح عند بداية الرحلة (عقدة)", "Wind at trip start (knots)")}</SectionTitle>
-          <GroupTable groups={[...windG.groups].sort(order(WIND_BUCKETS_KN))} labelOf={(k) => k} missing={windG.missing} missingLabel={t("{n} رحلة بدون بيانات رياح — مستبعدة", "{n} trips without wind data — excluded")} />
-          <SectionTitle>{t("ارتفاع الموج عند بداية الرحلة (م)", "Wave height at trip start (m)")}</SectionTitle>
-          <GroupTable groups={[...waveG.groups].sort(order(WAVE_BUCKETS))} labelOf={(k) => k} missing={waveG.missing} missingLabel={t("{n} رحلة بدون بيانات موج — مستبعدة", "{n} trips without wave data — excluded")} />
-          <SectionTitle>{t("العمق (م)", "Depth (m)")}</SectionTitle>
-          <GroupTable groups={[...depthG.groups].sort(order(DEPTH_BUCKETS))} labelOf={(k) => k} missing={depthG.missing} missingLabel={t("{n} رحلة بدون عمق مسجل", "{n} trips without a recorded depth")} />
-          <p className="mt-1 px-1 text-xs text-muted">{t("الرياح والموج من لقطات الظروف المحفوظة للرحلة (توقعات/نماذج) أو من إدخالك اليدوي.", "Wind and waves come from each trip's saved condition snapshot (forecast/model) or your manual entry.")}</p>
-
-          <SectionTitle>{t("الأنواع الأكثر صيداً", "Most caught species")}</SectionTitle>
-          <Card className="space-y-2">
-            {spc.slice(0, 10).map((x) => (
-              <div key={x.speciesId ?? "none"} className="text-sm">
-                <div className="flex justify-between">
-                  <span>{x.speciesId ? name(idx.speciesById.get(x.speciesId)) : t("غير محدد", "Unidentified")}</span>
-                  <span className="text-muted">
-                    {x.count} · {pct(x.count / catches.length)}
-                  </span>
-                </div>
-                <InlineBar value={x.count} max={spc[0].count} />
-              </div>
+          <SectionTitle action={<Link className="text-sm text-teal" href="/trips">{t("الكل", "All")}</Link>}>{t("آخر الرحلات", "Recent trips")}</SectionTitle>
+          <div className="space-y-2">
+            {recentTrips.map((x) => (
+              <TripCard key={x.id} trip={x} />
             ))}
-            {!spc.length && <p className="text-sm text-muted">—</p>}
-          </Card>
-
-          <SectionTitle>{t("أي طريقة نجحت مع كل نوع؟", "Which technique caught each species?")}</SectionTitle>
-          <Card className="space-y-2 text-sm">
-            {spTech.slice(0, 10).map((x) => (
-              <div key={x.sid} className="flex flex-wrap items-center gap-1.5">
-                <span className="me-1 font-medium">{name(idx.speciesById.get(x.sid))}</span>
-                {x.list.map(([tk, n]) => (
-                  <Badge key={tk} tone="ocean">
-                    {tk === "none" ? t("غير محدد", "n/a") : name(idx.techById.get(tk))} ×{n}
-                  </Badge>
-                ))}
-              </div>
-            ))}
-            <p className="text-xs text-muted">{t("عدد الأسماك فقط — لا يأخذ بالاعتبار كم مرة استخدمت كل طريقة.", "Counts of fish only — doesn't account for how often you used each technique.")}</p>
-          </Card>
-
-          <SectionTitle>{t("الأعماق حسب النوع", "Depths by species")}</SectionTitle>
-          <Card className="overflow-x-auto p-0">
-            <table className="w-full text-sm">
-              <thead className="text-xs text-muted">
-                <tr className="border-b border-line/50">
-                  <th className="p-2.5 text-start font-medium">{t("النوع", "Species")}</th>
-                  <th className="p-2.5 font-medium">{t("المدى (م)", "Range (m)")}</th>
-                  <th className="p-2.5 font-medium">{t("الوسيط", "Median")}</th>
-                  <th className="p-2.5 font-medium">n</th>
-                </tr>
-              </thead>
-              <tbody>
-                {depth.map((d) => (
-                  <tr key={d.speciesId} className="border-b border-line/30">
-                    <td className="p-2.5">{name(idx.speciesById.get(d.speciesId))}</td>
-                    <td className="ltr p-2.5 text-center">
-                      {d.min}–{d.max}
-                    </td>
-                    <td className="p-2.5 text-center">{num(d.median)}</td>
-                    <td className="p-2.5 text-center">
-                      {d.n}
-                      {d.fromTrip > 0 && <span className="text-[10px] text-muted"> ({d.fromTrip}*)</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="px-3 py-2 text-xs text-muted">{t("* عمق مأخوذ من الرحلة لأنه لم يُسجّل للسمكة.", "* depth taken from the trip because none was recorded for the catch.")}</p>
-          </Card>
-
-          {gear.length > 0 && (
+          </div>
+          {recentCatches.length > 0 && (
             <>
-              <SectionTitle>{t("أداء المعدات", "Gear performance")}</SectionTitle>
-              <Card className="overflow-x-auto p-0">
-                <table className="w-full text-sm">
-                  <thead className="text-xs text-muted">
-                    <tr className="border-b border-line/50">
-                      <th className="p-2.5 text-start font-medium">{t("المعدة", "Gear")}</th>
-                      <th className="p-2.5 font-medium">{t("رحلات", "Trips")}</th>
-                      <th className="p-2.5 font-medium">{t("نجاح", "Success")}</th>
-                      <th className="p-2.5 font-medium">{t("أسماك", "Fish")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gear.map(({ e, sm, fish }) => (
-                      <tr key={e.id} className={cn("border-b border-line/30", sm.trips < MIN_SAMPLE && "text-ink-2/70")}>
-                        <td className="p-2.5">{e.name}</td>
-                        <td className="p-2.5 text-center">{sm.trips}</td>
-                        <td className="p-2.5 text-center">{pct(sm.successRate)}</td>
-                        <td className="p-2.5 text-center">{fish}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <SectionTitle action={<Link className="text-sm text-teal" href="/catches">{t("الكل", "All")}</Link>}>{t("آخر الصيدات", "Recent catches")}</SectionTitle>
+              <Card className="p-2">
+                {recentCatches.map((c) => (
+                  <CatchRow key={c.id} c={c} showTrip />
+                ))}
               </Card>
             </>
           )}
+          <p className="mt-3 px-1 text-xs text-muted">
+            {t(
+              "الإحصائيات تُحسب من سجلاتك عند كل فتح، فأي تعديل أو حذف يظهر فوراً. الرحلات المخططة والجارية والملغاة لا تدخل في نسب النجاح.",
+              "Statistics are computed from your records every time, so edits and deletions show immediately. Planned, active and cancelled trips are not part of success rates.",
+            )}
+            {lang === "ar" ? "" : ""}
+          </p>
         </>
       )}
     </>

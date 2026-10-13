@@ -106,22 +106,22 @@ export function nowLocalInput(): string {
 type Lang = "ar" | "en";
 const locale = (lang: Lang) => (lang === "ar" ? "ar-KW-u-nu-latn" : "en-GB");
 
-export function fmtDate(iso: string | Date, lang: Lang, opts: Intl.DateTimeFormatOptions = {}): string {
+export function fmtDate(iso: string | Date | number, lang: Lang, opts: Intl.DateTimeFormatOptions = {}): string {
   return new Intl.DateTimeFormat(locale(lang), {
     timeZone: TZ,
     day: "numeric",
     month: "short",
     year: "numeric",
     ...opts,
-  }).format(typeof iso === "string" ? new Date(iso) : iso);
+  }).format(typeof iso === "string" || typeof iso === "number" ? new Date(iso) : iso);
 }
 
-export function fmtTime(iso: string | Date, lang: Lang): string {
+export function fmtTime(iso: string | Date | number, lang: Lang): string {
   return new Intl.DateTimeFormat(locale(lang), {
     timeZone: TZ,
     hour: "numeric",
     minute: "2-digit",
-  }).format(typeof iso === "string" ? new Date(iso) : iso);
+  }).format(typeof iso === "string" || typeof iso === "number" ? new Date(iso) : iso);
 }
 
 export function fmtDateTime(iso: string, lang: Lang): string {

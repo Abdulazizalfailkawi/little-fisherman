@@ -1,225 +1,586 @@
 "use client";
 
+// البحر — the home screen: live tide (سجي / ثبر / الوقفة), countdown to the
+// next turning point, high/low events, interactive 24 h tide chart and marine
+// conditions for the selected fishing spot. All times in Asia/Kuwait.
+
 import Link from "next/link";
-import { useMemo } from "react";
-import { BarChart3, CalendarDays, Clock, Fish, Flame, Plus, Ruler, Sailboat, Scale, Target, Trophy, Waves } from "lucide-react";
-import { DualDate, Photo, TripCard } from "@/components/common";
-import { Badge, Card, Empty, LinkButton, PageHeader, Progress, SectionTitle, Stat, N } from "@/components/ui";
-import { evaluateAchievements, nextMilestone } from "@/lib/achievements";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
+import { KindBadge } from "@/components/EnvPanel";
+import { ManualTideForm, readManualTide } from "@/components/ManualTide";
+import { TideChart } from "@/components/TideChart";
+import { Badge, Button, Card, Empty, LinkButton, Notice, Sheet, Spinner, cn } from "@/components/ui";
+import { SyncBadge } from "@/components/SyncBadge";
+import { MOON_EMOJI, moonAt, sunTimes } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
-import { goalProgress } from "@/lib/goals";
-import { useI18n } from "@/lib/i18n";
-import { byTechnique, pct, records, speciesCounts, summarize, tripRows, weeklyTripStreak } from "@/lib/stats";
-import { kwParts } from "@/lib/time";
+import { getGps } from "@/lib/gps";
+import { fmtHijri, toHijri } from "@/lib/hijri";
+import { useNow } from "@/lib/hooks/useNow";
+import { MOON_LABEL, useI18n } from "@/lib/i18n";
+import { getConditions, hazards, hourAt, turnsOf, type ConditionsResult } from "@/lib/marine/client";
+import { KMC_MARINE_URL } from "@/lib/marine/stations";
+import { compass, fmtWind, readWindUnit, type WindUnit } from "@/lib/marine/units";
+import { tideState, turningPointsFromEvents, type TurnEvent } from "@/lib/marine/waqfa";
+import { CYCLE_LABEL, cycleInfo, readCycleConfig } from "@/lib/tidecycle";
+import { dateKey, fmtDate, fmtDateTime, fmtTime } from "@/lib/time";
+import { isActiveStatus } from "@/lib/types";
 
-export default function Dashboard() {
-  const { ds, idx } = useStore();
-  const { t, name, num } = useI18n();
+const H = 3_600_000;
+const STALE_MS = 6 * H;
 
-  const rows = useMemo(() => tripRows(ds, idx), [ds, idx]);
-  const sum = useMemo(() => summarize(rows), [rows]);
-  const rec = useMemo(() => records(rows, ds.catches), [rows, ds.catches]);
-  const drafts = ds.trips.filter((x) => x.status === "draft").sort((a, b) => b.started_at.localeCompare(a.started_at));
-  const top = speciesCounts(ds.catches).find((s) => s.speciesId);
-  const favTech = byTechnique(rows).groups.sort((a, b) => b.trips - a.trips)[0];
-  const streak = weeklyTripStreak(ds.trips);
-  const ach = useMemo(() => evaluateAchievements(ds, idx, rows), [ds, idx, rows]);
-  const next = nextMilestone(ach);
-  const goals = ds.goals.filter((g) => g.status === "active").slice(0, 3);
+function hms(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+function remain(ms: number, lang: "ar" | "en") {
+  const m = Math.max(0, Math.round(ms / 60_000));
+  return lang === "ar" ? `بعد ${Math.floor(m / 60)} س ${m % 60} د` : `in ${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
-  const now = kwParts(new Date());
-  const monthRows = rows.filter((r) => {
-    const p = kwParts(r.trip.started_at);
-    return p.year === now.year && p.month === now.month;
-  });
-  const yearRows = rows.filter((r) => kwParts(r.trip.started_at).year === now.year);
-  const mSum = summarize(monthRows);
-  const ySum = summarize(yearRows);
-  const recent = [...ds.trips].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 5);
-  const heavy = rec.heaviest.measured ?? rec.heaviest.estimated;
-  const long = rec.longest.measured ?? rec.longest.estimated;
+export default function MarineHome() {
+  const store = useStore();
+  const { ds, idx, online, hijriOffset } = store;
+  const { t, lang } = useI18n();
+  const now = useNow(1000);
+  const [unit, setUnit] = useState<WindUnit>("kn");
+  const [spotId, setSpotId] = useState<string | null>(null);
+  const [gpsPt, setGpsPt] = useState<{ lat: number; lng: number } | null>(null);
+  const [res, setRes] = useState<ConditionsResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [sel, setSel] = useState<number | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualRev, setManualRev] = useState(0);
+  const [showHours, setShowHours] = useState(false);
+  const [gpsErr, setGpsErr] = useState<string | null>(null);
+
+  const spots = useMemo(
+    () => ds.locations.filter((l) => l.lat != null && l.lng != null).sort((a, b) => Number(!!b.is_favorite) - Number(!!a.is_favorite) || a.name.localeCompare(b.name, "ar")),
+    [ds.locations],
+  );
+  useEffect(() => setUnit(readWindUnit()), []);
+  useEffect(() => {
+    if (spotId || !spots.length) return;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem("ft.marineSpot");
+    } catch {}
+    setSpotId(spots.find((s) => s.id === saved)?.id ?? spots[0].id);
+  }, [spots, spotId]);
+
+  const spot = spots.find((s) => s.id === spotId) ?? null;
+  const pt = gpsPt ?? (spot ? { lat: spot.lat!, lng: spot.lng! } : null);
+  const hourKey = Math.floor(now / H);
+
+  const load = useCallback(
+    async (force = false) => {
+      if (!pt) return;
+      setLoading(true);
+      const base = hourKey * H;
+      setRes(await getConditions(pt.lat, pt.lng, new Date(base - 14 * H), new Date(base + 38 * H), { force }));
+      setLoading(false);
+    },
+    [pt?.lat, pt?.lng, hourKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const c = res?.data ?? null;
+  const today = dateKey(new Date(now));
+  const manual = useMemo(() => (spotId ? readManualTide(spotId, today) : null), [spotId, today, manualRev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const model = useMemo(() => (c ? turnsOf(c) : { pts: [], turns: [] as TurnEvent[] }), [c]);
+  const manualTurns = useMemo(() => (manual ? turningPointsFromEvents(manual.events) : null), [manual]);
+  const turns = manualTurns && manualTurns.some((x) => x.t > now) ? manualTurns : model.turns;
+  const usingManual = turns === manualTurns;
+  const st = tideState(usingManual ? [] : model.pts, turns, now);
+  const stale = !!res?.savedAt && now - res.savedAt > STALE_MS;
+  const fetchedAge = c ? now - Date.parse(c.fetched_at) : 0;
+
+  // When the last loaded turning point has passed, fetch a newer window.
+  useEffect(() => {
+    if (c && !usingManual && model.turns.length && !model.turns.some((x) => x.t > now) && online) void load(true);
+  }, [c, usingManual, model.turns, now, online, load]);
+
+  const w = c ? hourAt(c.weather.hours, now) : null;
+  const cur = c?.current ?? null;
+  const wx = cur ?? w;
+  const m = c ? hourAt(c.marine.hours, now) : null;
+  const moon = moonAt(new Date(now));
+  const sun = pt ? sunTimes(new Date(now), pt.lat, pt.lng) : null;
+  const warn = c ? hazards(c, now, now + 24 * H) : [];
+  const hijri = toHijri(new Date(now), hijriOffset);
+  const cyc = cycleInfo(today, hijriOffset, readCycleConfig());
+  const active = ds.trips.find((x) => isActiveStatus(x.status));
+  const chartFrom = now - 2 * H;
+  const chartTo = now + 24 * H;
+  const selState = sel != null ? tideState(usingManual ? [] : model.pts, turns, sel) : null;
+
+  const dirLabel = (d: string | null) =>
+    d === "rising" ? t("سجي", "Saji · rising") : d === "falling" ? t("ثبر", "Thabr · falling") : d === "waqfa" ? t("وقفة", "Waqfa · slack") : "—";
+  const dirColor = (d: string | null) => (d === "rising" ? "text-rise" : d === "falling" ? "text-fall" : "text-warn");
+  const tideSource = usingManual ? t(`يدوي — ${manual!.station === "shuwaikh" ? "الشويخ" : manual!.station === "shuaiba" ? "الشعيبة" : "مصدر آخر"}`, `Manual — ${manual!.station}`) : c?.tide.source ?? "";
 
   return (
     <>
-      <PageHeader title={t("الصياد الصغير", "Little Fisherman")} subtitle={<DualDate iso={new Date().toISOString()} />} />
-
-      {drafts.map((d) => (
-        <Card key={d.id} className="mb-3 border-warn/40 bg-warn/5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-xs text-warn">{t("رحلة جارية", "Trip in progress")}</div>
-              <div className="truncate font-semibold">{d.title || (d.location_id && idx.locById.get(d.location_id)?.name) || t("رحلة صيد", "Fishing trip")}</div>
-              <div className="text-xs text-muted">
-                {(idx.catchesByTrip.get(d.id) ?? []).length} {t("سمكة حتى الآن", "fish so far")}
-              </div>
+      {/* Header */}
+      <header className="no-print sticky top-0 z-30 -mx-4 mb-3 border-b border-line/40 bg-navy/85 px-4 pb-3 pt-[calc(var(--safe-top)+0.75rem)] backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="relative">
+              <select
+                aria-label={t("موقع الصيد", "Fishing spot")}
+                value={gpsPt ? "__gps" : spotId ?? ""}
+                onChange={(e) => {
+                  if (e.target.value === "__gps") return;
+                  setGpsPt(null);
+                  setSpotId(e.target.value);
+                  setSel(null);
+                  try {
+                    localStorage.setItem("ft.marineSpot", e.target.value);
+                  } catch {}
+                }}
+                className="w-full appearance-none truncate bg-transparent pe-6 text-xl font-bold focus:outline-none"
+              >
+                {gpsPt && <option value="__gps">{t("موقعي (GPS)", "My location (GPS)")}</option>}
+                {!spots.length && <option value="">{t("لا يوجد موقع", "No spot")}</option>}
+                {spots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.is_favorite ? "★ " : ""}
+                    {lang === "ar" ? s.name : s.name_en || s.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
-            <div className="flex shrink-0 gap-2">
-              <LinkButton href={`/catch/edit?trip=${d.id}`} variant="teal" size="md">
-                <Fish className="size-5" /> {t("سمكة", "Fish")}
-              </LinkButton>
-              <LinkButton href={`/trip?id=${d.id}`} variant="secondary">
-                {t("فتح", "Open")}
-              </LinkButton>
+            <div className="truncate text-xs text-ink-2">
+              <span className="ltr font-semibold text-ink">{new Intl.DateTimeFormat(lang === "ar" ? "ar-KW-u-nu-latn" : "en-GB", { timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(now))}</span>
+              {" · "}
+              {fmtDate(new Date(now), lang, { weekday: "short" })} · {fmtHijri(hijri, lang)}
             </div>
           </div>
+          <button
+            aria-label="GPS"
+            onClick={async () => {
+              setGpsErr(null);
+              try {
+                setGpsPt(await getGps());
+                setSel(null);
+              } catch (e) {
+                setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
+              }
+            }}
+            className="grid size-10 place-items-center rounded-full border border-line bg-surface-2"
+          >
+            <LocateFixed className="size-5" />
+          </button>
+          <button aria-label="refresh" disabled={!online || !pt || loading} onClick={() => load(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2 disabled:opacity-40">
+            <RefreshCw className={cn("size-5", loading && "animate-spin")} />
+          </button>
+          <SyncBadge />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+          {cyc.cycle !== "between" && <Badge tone={cyc.cycle === "hamal" ? "ocean" : "warn"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}</Badge>}
+          <Badge>
+            {MOON_EMOJI[moon.phase]} {MOON_LABEL[moon.phase][lang]} {Math.round(moon.illumination * 100)}%
+          </Badge>
+          {sun?.sunrise && (
+            <Badge>
+              <Sunrise className="size-3" /> {fmtTime(sun.sunrise, lang)}
+            </Badge>
+          )}
+          {sun?.sunset && (
+            <Badge>
+              <Sunset className="size-3" /> {fmtTime(sun.sunset, lang)}
+            </Badge>
+          )}
+        </div>
+        {gpsErr && <p className="mt-1 text-xs text-warn">{gpsErr}</p>}
+      </header>
+
+      {/* Active trip / new trip */}
+      {active ? (
+        <Card className="mb-3 flex items-center justify-between gap-2 border-teal/40">
+          <div className="min-w-0">
+            <div className="text-xs text-teal">{t("رحلة جارية", "Active trip")}</div>
+            <div className="truncate font-semibold">{active.title || (active.location_id && idx.locById.get(active.location_id)?.name) || t("رحلة صيد", "Fishing trip")}</div>
+            <div className="text-xs text-muted">
+              {(idx.catchesByTrip.get(active.id) ?? []).length} {t("صيدة", "catches")}
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <LinkButton href={`/catch/edit?trip=${active.id}`} variant="teal">
+              <Fish className="size-5" /> {t("سجّل صيدة", "Log catch")}
+            </LinkButton>
+            <LinkButton href={`/trip?id=${active.id}`} variant="secondary">
+              {t("الرحلة", "Trip")}
+            </LinkButton>
+          </div>
         </Card>
-      ))}
+      ) : (
+        <LinkButton href="/trip/edit" size="lg" className="mb-3 w-full">
+          <Plus className="size-5" /> {t("رحلة جديدة", "New trip")}
+        </LinkButton>
+      )}
 
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { href: "/trip/edit?start=1", icon: Sailboat, label: t("رحلة جديدة", "New trip") },
-          { href: "/quick?fish=1", icon: Fish, label: t("سجّل سمكة", "Log fish") },
-          { href: "/marine", icon: Waves, label: t("البحر الآن", "Marine") },
-          { href: "/collection", icon: Trophy, label: t("مجموعتي", "Collection") },
-          { href: "/stats", icon: BarChart3, label: t("الإحصائيات", "Stats") },
-          { href: "/calendar", icon: CalendarDays, label: t("التقويم", "Calendar") },
-        ].map((a) => (
-          <Link
-            key={a.href}
-            href={a.href}
-            className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-line/70 bg-surface/80 px-1 text-center text-xs text-ink-2 hover:bg-surface-2"
-          >
-            <a.icon className="size-6 text-teal" />
-            {a.label}
-          </Link>
-        ))}
-      </div>
-
-      {ds.trips.length === 0 ? (
-        <div className="mt-6">
-          <Empty
-            icon="🌊"
-            title={t("ابدأ أول رحلة", "Start your first trip")}
-            action={
-              <div className="flex flex-col items-center gap-2">
-                <LinkButton href="/trip/edit?start=1" size="lg">
-                  <Plus className="size-5" /> {t("رحلة جديدة", "New trip")}
-                </LinkButton>
-                <Link href="/settings#demo" className="text-sm text-teal">
-                  {t("أو جرّب بيانات تجريبية", "or try demo data")}
-                </Link>
-              </div>
-            }
-          >
-            {t(
-              "سجّل كل رحلة — حتى الرحلات بدون صيد — لتحصل على إحصائيات صادقة عن صيدك.",
-              "Log every trip — including blank ones — to get honest statistics about your fishing.",
-            )}
-          </Empty>
+      {!pt ? (
+        <Empty
+          icon="📍"
+          title={t("اختر موقع صيد", "Choose a fishing spot")}
+          action={
+            <LinkButton href="/spots">
+              <MapPin className="size-4" /> {t("أضف موقعاً بإحداثيات", "Add a spot with coordinates")}
+            </LinkButton>
+          }
+        >
+          {t("أضف موقعك المفضل (مثل الفنطاس) من الخريطة، أو اضغط GPS بالأعلى.", "Add your favourite spot (e.g. Al-Fintas) on the map, or tap GPS above.")}
+        </Empty>
+      ) : !c && loading ? (
+        <div className="grid place-items-center py-16">
+          <Spinner />
         </div>
       ) : (
         <>
-          <SectionTitle>{t("ملخص", "Overview")}</SectionTitle>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Stat icon={<Sailboat className="size-3.5" />} label={t("الرحلات", "Trips")} value={sum.trips} sub={drafts.length ? t(`+${drafts.length} جارية`, `+${drafts.length} in progress`) : undefined} />
-            <Stat icon={<Fish className="size-3.5" />} label={t("إجمالي الأسماك", "Fish caught")} value={ds.catches.length} sub={t(`${sum.speciesCount} نوع`, `${sum.speciesCount} species`)} />
-            <Stat
-              icon={<Target className="size-3.5" />}
-              label={t("نسبة نجاح الرحلات", "Trip success rate")}
-              value={pct(sum.successRate)}
-              sub={t(`${sum.successful} ناجحة · ${sum.blank} بدون صيد`, `${sum.successful} successful · ${sum.blank} blank`)}
-            />
-            <Stat icon={<Clock className="size-3.5" />} label={t("ساعات الصيد", "Fishing hours")} value={num(sum.hours, 0)} sub={sum.catchesPerHour != null ? t(`${num(sum.catchesPerHour, 2)} سمكة/ساعة`, `${num(sum.catchesPerHour, 2)} fish/hour`) : undefined} />
-            <Stat icon={<Fish className="size-3.5" />} label={t("الأكثر صيداً", "Most caught")} value={<span className="text-lg">{top ? name(idx.speciesById.get(top.speciesId!)) : "—"}</span>} sub={top ? `×${top.count}` : undefined} />
-            <Stat
-              icon={<Flame className="size-3.5" />}
-              label={t("أسابيع متتالية بالبحر", "Weeks in a row fishing")}
-              value={streak}
-              sub={t("رحلة واحدة على الأقل أسبوعياً", "at least one trip a week")}
-            />
-            <Stat
-              icon={<Scale className="size-3.5" />}
-              label={t("أثقل سمكة", "Heaviest fish")}
-              value={heavy ? <span>{heavy.weight_kg} {t("كغ", "kg")}</span> : "—"}
-              sub={heavy ? <>{name(heavy.species_id ? idx.speciesById.get(heavy.species_id) : null)} {heavy.weight_is_estimate ? t("(تقديري)", "(est.)") : ""}</> : undefined}
-            />
-            <Stat
-              icon={<Ruler className="size-3.5" />}
-              label={t("أطول سمكة", "Longest fish")}
-              value={long ? <span>{long.length_cm} {t("سم", "cm")}</span> : "—"}
-              sub={long ? <>{name(long.species_id ? idx.speciesById.get(long.species_id) : null)} {long.length_is_estimate ? t("(تقديري)", "(est.)") : ""}</> : undefined}
-            />
-            <Stat
-              icon={<Sailboat className="size-3.5" />}
-              label={t("الطريقة المفضلة", "Favourite technique")}
-              value={<span className="text-lg">{favTech ? name(idx.techById.get(favTech.key)) : "—"}</span>}
-              sub={favTech ? t(`${favTech.trips} رحلة · نجاح ${pct(favTech.successRate)}`, `${favTech.trips} trips · ${pct(favTech.successRate)} success`) : undefined}
-            />
-          </div>
-
-          <SectionTitle>{t("هذا الشهر وهذه السنة", "This month & this year")}</SectionTitle>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { l: t("هذا الشهر", "This month"), s: mSum },
-              { l: t("هذه السنة", "This year"), s: ySum },
-            ].map(({ l, s }) => (
-              <Card key={l} className="p-3.5">
-                <div className="text-xs text-muted">{l}</div>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{s.catches}</span>
-                  <span className="text-sm text-muted">{t("سمكة", "fish")}</span>
-                </div>
-                <div className="text-xs text-ink-2">
-                  {s.trips} {t("رحلة", "trips")} · {t("نجاح", "success")} {pct(s.successRate)} <N n={s.trips} />
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {(goals.length > 0 || next) && (
-            <>
-              <SectionTitle action={<Link className="text-sm text-teal" href="/achievements">{t("الكل", "All")}</Link>}>
-                {t("الأهداف والإنجازات", "Goals & achievements")}
-              </SectionTitle>
-              <Card className="space-y-4">
-                {goals.map((g) => {
-                  const p = goalProgress(g, ds, idx);
-                  return (
-                    <div key={g.id}>
-                      <div className="mb-1 flex justify-between gap-2 text-sm">
-                        <span className="truncate">{g.title}</span>
-                        <span className="ltr shrink-0 text-muted">
-                          {num(p.current)} / {num(p.target)}
-                        </span>
-                      </div>
-                      <Progress value={p.ratio} tone={p.complete ? "good" : "teal"} />
-                    </div>
-                  );
-                })}
-                {next && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{next.def.icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs text-muted">{t("الإنجاز التالي", "Next milestone")}</div>
-                      <div className="truncate text-sm font-medium">{t(next.def.name_ar, next.def.name_en)}</div>
-                      <Progress value={next.current / next.target} tone="ocean" />
-                    </div>
-                    <Badge>
-                      {next.current}/{next.target}
-                    </Badge>
-                  </div>
-                )}
-              </Card>
-            </>
+          {res?.error && !c && (
+            <Notice tone="warn">{res.error === "OFFLINE" ? t("لا يوجد اتصال ولا توجد بيانات محفوظة لهذا الموقع.", "Offline and no saved data for this spot.") : t("تعذر الاتصال بمصدر البيانات.", "Couldn't reach the data provider.")}</Notice>
+          )}
+          {(stale || res?.stale) && c && (
+            <Notice tone="warn" className="mb-3">
+              {t(`بيانات قديمة (جُلبت ${fmtDateTime(c.fetched_at, "ar")}) — تعذر التحديث.`, `Stale data (fetched ${fmtDateTime(c.fetched_at, "en")}) — refresh failed.`)}
+            </Notice>
           )}
 
-          <SectionTitle action={<Link className="text-sm text-teal" href="/trips">{t("الكل", "All")}</Link>}>{t("آخر النشاطات", "Recent activity")}</SectionTitle>
-          <div className="space-y-2">
-            {recent.map((tr) => (
-              <TripCard key={tr.id} trip={tr} />
+          {/* Tide phase + waqfa countdown */}
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-3.5">
+              <div className="text-xs text-muted">{t("حالة الماء الآن", "Tide now")}</div>
+              {st.direction ? (
+                <>
+                  <div className={cn("mt-1 flex items-center gap-1.5 text-3xl font-extrabold", dirColor(st.direction))}>
+                    {st.direction === "rising" ? <ArrowUp className="size-8" strokeWidth={3} /> : st.direction === "falling" ? <ArrowDown className="size-8" strokeWidth={3} /> : <Timer className="size-7" />}
+                    {dirLabel(st.direction)}
+                  </div>
+                  <div className="mt-1 text-xs text-ink-2">
+                    {st.level != null && (
+                      <bdi>
+                        {st.level} {t("م", "m")}
+                      </bdi>
+                    )}
+                    {st.rateCmPerH != null && (
+                      <span className="text-muted">
+                        {" · "}
+                        <bdi>
+                          {st.rateCmPerH > 0 ? "+" : ""}
+                          {st.rateCmPerH} {t("سم/ساعة", "cm/h")}
+                        </bdi>
+                      </span>
+                    )}
+                  </div>
+                  {st.next && (
+                    <div className="mt-1 text-xs text-muted">
+                      {t("التحول التالي", "Next turn")}: {fmtTime(st.next.t, lang)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-muted">{t("بيانات المد غير متوفرة", "Tide data unavailable")}</div>
+              )}
+            </Card>
+
+            <Card className="border-warn/30 p-3.5">
+              <div className="text-xs text-warn">{st.direction === "waqfa" ? t("في الوقفة الآن", "In the waqfa now") : t("الوقفة القادمة", "Next waqfa")}</div>
+              {st.turn ? (
+                <>
+                  <div className="ltr mt-1 text-start font-mono text-3xl font-extrabold tabular-nums">
+                    {st.direction === "waqfa" && st.turn.waqfaEnd ? hms(st.turn.waqfaEnd - now) : hms((st.turn.waqfaStart ?? st.turn.t) - now)}
+                  </div>
+                  <div className="text-xs text-ink-2">
+                    {st.turn.type === "high" ? t("سجي ← ثبر", "Saji → Thabr") : t("ثبر ← سجي", "Thabr → Saji")} · {t("التحول", "turn")} {fmtTime(st.turn.t, lang)}
+                  </div>
+                  {st.turn.waqfaStart != null && st.turn.waqfaEnd != null ? (
+                    <div className="text-[11px] text-muted">
+                      {t("الوقفة تقريباً", "Waqfa approx.")} {fmtTime(st.turn.waqfaStart, lang)}–{fmtTime(st.turn.waqfaEnd, lang)}
+                      {st.turn.uncertaintyMin ? ` · ±${st.turn.uncertaintyMin} ${t("د", "min")}` : ""}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-muted">{t("وقت الحدث فقط — مدة الوقفة غير معروفة", "Event time only — waqfa duration unknown")}</div>
+                  )}
+                  <div className="mt-1 text-[10px] text-warn/90">{t("وقت متوقع وليس مؤكداً", "Predicted, not guaranteed")}</div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-muted">{t("بيانات الوقفة غير متوفرة حالياً", "Waqfa data currently unavailable")}</div>
+              )}
+            </Card>
+          </div>
+
+          {/* High / low */}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {[
+              { e: st.nextHigh, l: t("أعلى مد", "High tide"), cls: "text-rise", Icon: ArrowUp },
+              { e: st.nextLow, l: t("أدنى جزر", "Low tide"), cls: "text-fall", Icon: ArrowDown },
+            ].map(({ e, l, cls, Icon }) => (
+              <Card key={l} className="p-3.5">
+                <div className={cn("flex items-center gap-1 text-xs", cls)}>
+                  <Icon className="size-3.5" /> {l}
+                </div>
+                {e ? (
+                  <>
+                    <div className="mt-1 text-2xl font-bold">{fmtTime(e.t, lang)}</div>
+                    <div className="text-xs text-ink-2">
+                      {e.h != null ? (
+                        <>
+                          <bdi>
+                            {e.h} {t("م", "m")}
+                          </bdi>
+                          {" · "}
+                        </>
+                      ) : null}
+                      {remain(e.t - now, lang)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-2 text-sm text-muted">—</div>
+                )}
+              </Card>
             ))}
           </div>
 
-          {rec.heaviest.measured?.photo_media_id && (
-            <>
-              <SectionTitle>{t("صيدة العمر", "Catch of a lifetime")}</SectionTitle>
-              <Link href={`/catch?id=${rec.heaviest.measured.id}`}>
-                <Photo mediaId={rec.heaviest.measured.photo_media_id} variant="full" className="aspect-video w-full rounded-[var(--radius-card)]" />
-              </Link>
-            </>
+          {/* Interactive chart */}
+          <Card className="mt-2 p-3">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold">{t("منحنى المد — ٢٤ ساعة", "Tide — 24 hours")}</span>
+              {sel != null && (
+                <button className="text-xs text-teal" onClick={() => setSel(null)}>
+                  {t("عودة للآن", "Back to now")}
+                </button>
+              )}
+            </div>
+            {!usingManual && model.pts.length > 3 ? (
+              <>
+                <div className="mb-1 min-h-10 rounded-xl bg-surface-2 px-3 py-1.5 text-sm">
+                  {sel != null && selState ? (
+                    <div className="flex flex-wrap items-center gap-x-3">
+                      <b className="ltr">{fmtTime(sel, lang)}</b>
+                      <span className={dirColor(selState.direction)}>{dirLabel(selState.direction)}</span>
+                      {selState.level != null && (
+                        <bdi>
+                          {selState.level} {t("م", "m")}
+                        </bdi>
+                      )}
+                      {selState.next && (
+                        <span className="text-xs text-muted">
+                          {selState.next.type === "high" ? t("أعلى مد", "High") : t("أدنى جزر", "Low")} {remain(selState.next.t - sel, lang)}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted">{t("اسحب على المنحنى لمعرفة المد في أي وقت", "Drag across the curve to inspect any time")}</span>
+                  )}
+                </div>
+                <TideChart pts={model.pts} turns={model.turns} from={chartFrom} to={chartTo} now={now} selected={sel} onSelect={setSel} />
+                <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-muted">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1 w-4 rounded-full bg-rise" /> {t("سجي", "Saji (rising)")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-1 w-4 rounded-full bg-fall" /> {t("ثبر", "Thabr (falling)")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-3 w-4 rounded-sm bg-warn/20" /> {t("وقفة تقديرية", "Estimated waqfa")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="h-0 w-4 border-t-2 border-dashed border-warn" /> {t("الآن", "now")}
+                  </span>
+                </div>
+              </>
+            ) : usingManual ? (
+              <p className="text-sm text-muted">{t("تستخدم أوقاتاً يدوية لهذا اليوم — لا يوجد منحنى مُقاس، فلا نرسم منحنى مخترعاً.", "Using manual times for today — no measured curve, so none is drawn.")}</p>
+            ) : (
+              <p className="text-sm text-muted">{t("بيانات مستوى البحر غير متوفرة لهذا الموقع.", "Sea-level data unavailable for this spot.")}</p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+              <KindBadge kind={usingManual ? "manual" : (c?.tide.kind ?? "unavailable")} />
+              <span className="truncate">{tideSource}</span>
+              {c && !usingManual && <span>· {t("جُلب", "fetched")} {fmtTime(c.fetched_at, lang)}</span>}
+            </div>
+            {!usingManual && c?.tide.status !== "unavailable" && (
+              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                {t(
+                  "تنبؤ من نموذج مستوى البحر (Open-Meteo، شبكة ~٥–٩ كم، مرجع متوسط سطح البحر) — ليس جدولاً رسمياً ولا للملاحة. الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول؛ الماء لا يتوقف فعلياً وقد تختلف التيارات محلياً.",
+                  "Prediction from a sea-level model (Open-Meteo, ~5–9 km grid, MSL datum) — not an official table, not for navigation. Waqfa = period where the level changes < 5 cm/h around the turn; water doesn't truly stop and local currents may differ.",
+                )}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {spotId && (
+                <Button size="sm" variant="secondary" onClick={() => setManualOpen(true)}>
+                  <PencilLine className="size-4" /> {usingManual ? t("تعديل الأوقات اليدوية", "Edit manual times") : t("إدخال أوقات رسمية يدوياً", "Enter official times")}
+                </Button>
+              )}
+              <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 px-2 text-xs text-teal underline">
+                {t("الجدول الرسمي", "Official table")} <ExternalLink className="size-3" />
+              </a>
+            </div>
+          </Card>
+
+          {warn.length > 0 && (
+            <Notice tone="warn" className="mt-2">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="size-4" /> {t("تنبيهات خلال ٢٤ ساعة", "Alerts in the next 24 h")}
+              </div>
+              <ul className="mt-1 list-inside list-disc">
+                {warn.map((x) => (
+                  <li key={x.key}>{t(x.ar, x.en)}</li>
+                ))}
+              </ul>
+              <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 underline">
+                {t("النشرة البحرية الرسمية", "Official marine bulletin")} <ExternalLink className="size-3" />
+              </a>
+            </Notice>
+          )}
+
+          {/* Conditions */}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Card className="p-3.5">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
+                <Wind className="size-3.5" /> {t("الرياح", "Wind")}
+              </div>
+              {wx?.wind != null ? (
+                <>
+                  <div className="text-xl font-bold">{fmtWind(wx.wind, unit, lang)}</div>
+                  <div className="text-xs text-ink-2">
+                    {compass(wx.dir, lang)} · {t("هبات", "gusts")} {fmtWind(wx.gust, unit, lang)}
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
+              )}
+              <div className="mt-1">
+                <KindBadge kind={cur ? "forecast" : (w?.k ?? "unavailable")} />
+              </div>
+            </Card>
+            <Card className="p-3.5">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
+                <Waves className="size-3.5" /> {t("الموج", "Waves")}
+              </div>
+              {m?.wave_h != null ? (
+                <>
+                  <div className="text-xl font-bold">
+                    {m.wave_h} {t("م", "m")}
+                  </div>
+                  <div className="text-xs text-ink-2">
+                    {m.wave_p != null ? `${m.wave_p} ${t("ث", "s")} · ` : ""}
+                    {t("من", "from")} {compass(m.wave_dir, lang)}
+                  </div>
+                  {m.swell_h != null && (
+                    <div className="text-xs text-muted">
+                      {t("سويل", "Swell")} {m.swell_h} {t("م", "m")} · {t("موج رياح", "wind waves")} {m.wind_wave_h ?? "—"} {t("م", "m")}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
+              )}
+              <div className="mt-1">
+                <KindBadge kind={m?.k ?? "unavailable"} />
+              </div>
+            </Card>
+            <Card className="p-3.5">
+              <div className="mb-1 text-xs text-muted">{t("الطقس", "Weather")}</div>
+              {wx?.temp != null ? (
+                <>
+                  <div className="text-xl font-bold">{wx.temp}°</div>
+                  <div className="text-xs text-ink-2">
+                    {t("الإحساس", "Feels")} {wx.feels ?? "—"}° · {t("رطوبة", "RH")} {wx.rh ?? "—"}%
+                  </div>
+                  {w?.pprob != null && (
+                    <div className="text-xs text-muted">
+                      {t("احتمال مطر", "Rain chance")} {w.pprob}%
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
+              )}
+            </Card>
+            <Card className="p-3.5">
+              <div className="mb-1 text-xs text-muted">{t("حرارة الماء", "Sea temperature")}</div>
+              {m?.sst != null ? <div className="text-xl font-bold">{m.sst}°</div> : <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>}
+              {m?.cur_v != null && (
+                <div className="text-xs text-ink-2">
+                  {t("التيار (نموذج)", "Current (model)")} {(m.cur_v / 1.852).toFixed(1)} {t("عقدة", "kn")}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {c && (
+            <Card className="mt-2 p-0">
+              <button className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold" onClick={() => setShowHours((v) => !v)}>
+                {t("الساعات القادمة", "Hour by hour")} <ChevronDown className={cn("size-4 transition-transform", showHours && "rotate-180")} />
+              </button>
+              {showHours && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="text-muted">
+                      <tr className="border-b border-line/50">
+                        <th className="p-2 text-start font-medium">{t("الوقت", "Time")}</th>
+                        <th className="p-2 font-medium">{t("المد", "Tide")}</th>
+                        <th className="p-2 font-medium">{t("رياح", "Wind")}</th>
+                        <th className="p-2 font-medium">{t("موج", "Wave")}</th>
+                        <th className="p-2 font-medium">°C</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.weather.hours
+                        .filter((h) => Date.parse(h.t) >= now - H / 2 && Date.parse(h.t) <= now + 24 * H)
+                        .map((h) => {
+                          const tt = Date.parse(h.t);
+                          const mh = hourAt(c.marine.hours, tt);
+                          const s2 = tideState(model.pts, model.turns, tt);
+                          return (
+                            <tr key={h.t} className="border-b border-line/30">
+                              <td className="p-2">{fmtTime(tt, lang)}</td>
+                              <td className={cn("p-2 text-center", dirColor(s2.direction))}>{s2.direction ? dirLabel(s2.direction) : "—"}</td>
+                              <td className="p-2 text-center">
+                                {h.wind != null ? fmtWind(h.wind, unit, lang).split(" ")[0] : "—"} <span className="text-muted">{compass(h.dir, lang)}</span>
+                              </td>
+                              <td className="p-2 text-center">{mh?.wave_h ?? "—"}</td>
+                              <td className="p-2 text-center">{h.temp ?? "—"}</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {c && (
+            <p className="mt-3 px-1 text-[11px] leading-relaxed text-muted">
+              {c.weather.source} · {c.marine.source}. {t("آخر تحديث", "Last update")}: {fmtDateTime(c.fetched_at, lang)}
+              {fetchedAge > H ? t(" (منذ أكثر من ساعة)", " (over an hour ago)") : ""}. {c.attribution} {t("القيم توقعات/تقديرات نماذج وليست قياسات من موقعك.", "Values are forecasts/model estimates, not measurements at your spot.")}
+            </p>
           )}
         </>
       )}
+
+      <Sheet open={manualOpen} onClose={() => setManualOpen(false)} title={t("أوقات المد الرسمية — اليوم", "Official tide times — today")}>
+        {spotId && (
+          <ManualTideForm
+            spot={spotId}
+            day={today}
+            onDone={() => {
+              setManualOpen(false);
+              setManualRev((v) => v + 1);
+            }}
+          />
+        )}
+      </Sheet>
     </>
   );
 }

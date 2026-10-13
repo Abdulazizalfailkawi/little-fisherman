@@ -121,10 +121,14 @@ export interface Equipment extends Timestamps {
   is_demo: boolean;
 }
 
+export type TripStatus = "planned" | "active" | "completed" | "cancelled" | "draft";
+export const isActiveStatus = (s: TripStatus) => s === "active" || s === "draft";
+
 export interface Trip extends Timestamps {
   id: string;
   title: string | null;
-  status: "draft" | "completed";
+  /** "draft" is a legacy alias of "active". */
+  status: TripStatus;
   started_at: ISO;
   ended_at: ISO | null;
   hijri_date_override: string | null; // "1448-04-10"
@@ -146,6 +150,16 @@ export interface Trip extends Timestamps {
   gear_notes: string | null;
   notes: string | null;
   is_demo: boolean;
+  planned_start_at?: ISO | null;
+  target_depth_m?: number | null;
+  target_depth_max_m?: number | null;
+  lure_type?: string | null;
+  lure_weight_g?: number | null;
+  lure_color?: string | null;
+  lure_size?: string | null;
+  trolling_speed_kn?: number | null;
+  what_worked?: string | null;
+  next_time?: string | null;
 }
 
 export interface AiCandidate {
@@ -167,7 +181,8 @@ export interface AiSuggestion {
 
 export interface Catch extends Timestamps {
   id: string;
-  trip_id: string;
+  /** null = not linked to a trip (yet) */
+  trip_id: string | null;
   species_id: string | null;
   caught_at: ISO;
   weight_kg: number | null;
@@ -196,6 +211,8 @@ export interface Catch extends Timestamps {
   leader?: string | null;
   hook?: string | null;
   hijri_date_override?: string | null;
+  lure_weight_g?: number | null;
+  lure_color?: string | null;
 }
 
 export interface TripEquipment {
@@ -206,6 +223,11 @@ export interface TripEquipment {
 export interface CatchEquipment {
   catch_id: string;
   equipment_id: string;
+  created_at: ISO;
+}
+export interface TripTarget {
+  trip_id: string;
+  species_id: string;
   created_at: ISO;
 }
 export interface CatchMedia {
@@ -255,7 +277,7 @@ export type EnvCategory = "weather" | "marine" | "tide" | "astronomy" | "status"
 export type EnvValue = number | string | boolean | null | EnvValue[] | { [k: string]: EnvValue };
 export interface EnvironmentObservation extends Timestamps {
   id: string;
-  trip_id: string;
+  trip_id: string | null;
   catch_id: string | null;
   source: string;
   kind: EnvKind;
@@ -290,6 +312,7 @@ export interface Tables {
   catch_equipment: CatchEquipment;
   trip_media: TripMedia;
   catch_media: CatchMedia;
+  trip_targets: TripTarget;
   goals: Goal;
   user_achievements: UserAchievement;
   environment_observations: EnvironmentObservation;
@@ -312,6 +335,7 @@ export const TABLE_ORDER: TableName[] = [
   "catch_equipment",
   "trip_media",
   "catch_media",
+  "trip_targets",
   "goals",
   "user_achievements",
   "environment_observations",
@@ -330,6 +354,7 @@ export const TABLE_KEYS: Record<TableName, string[]> = {
   catch_equipment: ["catch_id", "equipment_id"],
   trip_media: ["trip_id", "media_id"],
   catch_media: ["catch_id", "media_id"],
+  trip_targets: ["trip_id", "species_id"],
   goals: ["id"],
   user_achievements: ["achievement_code"],
   environment_observations: ["id"],
@@ -357,6 +382,7 @@ export interface Dataset {
   catch_equipment: CatchEquipment[];
   trip_media: TripMedia[];
   catch_media: CatchMedia[];
+  trip_targets: TripTarget[];
   goals: Goal[];
   user_achievements: UserAchievement[];
   environment_observations: EnvironmentObservation[];
@@ -375,6 +401,7 @@ export function emptyDataset(): Dataset {
     catch_equipment: [],
     trip_media: [],
     catch_media: [],
+    trip_targets: [],
     goals: [],
     user_achievements: [],
     environment_observations: [],
