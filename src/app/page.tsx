@@ -136,7 +136,11 @@ export default function MarineHome() {
     try {
       saved = localStorage.getItem("ft.marineSpot");
     } catch {}
-    setSpotId(spots.find((s) => s.id === saved)?.id ?? spots[0].id);
+    const pick = spots.find((s) => s.id === saved)?.id ?? spots[0].id;
+    setSpotId(pick);
+    try {
+      localStorage.setItem("ft.marineSpot", pick);
+    } catch {}
   }, [spots, spotId]);
 
   const spot = spots.find((s) => s.id === spotId) ?? null;
@@ -282,11 +286,7 @@ export default function MarineHome() {
             </LinkButton>
           </div>
         </Card>
-      ) : (
-        <LinkButton href="/trip/edit" size="lg" className="mb-3 w-full">
-          <Plus className="size-5" /> {t("رحلة جديدة", "New trip")}
-        </LinkButton>
-      )}
+      ) : null}
 
       {!pt ? (
         <Empty
@@ -405,7 +405,6 @@ export default function MarineHome() {
                     {fmtDate(new Date(now), lang, { weekday: "long" })} · {fmtDate(new Date(now), lang)}
                   </Badge>
                   <Badge>{fmtHijri(hijri, lang)}</Badge>
-                  {cyc.cycle !== "between" && <Badge tone={cyc.cycle === "hamal" ? "ocean" : "warn"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}</Badge>}
                   <Badge>
                     {MOON_EMOJI[moon.phase]} {MOON_LABEL[moon.phase][lang]} {Math.round(moon.illumination * 100)}%
                   </Badge>
@@ -477,6 +476,12 @@ export default function MarineHome() {
                 <div className="text-base font-bold">{m?.sst != null ? `${m.sst}°` : "—"}</div>
                 <div className="text-[11px] text-ink-2">{wx?.temp != null ? `${t("الجو", "Air")} ${wx.temp}°` : ""}</div>
               </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2 text-sm">
+              <span className="text-[11px] text-muted">{t("دورة اليوم", "Today's cycle")}</span>
+              <span className={cn("font-bold", cyc.cycle === "hamal" ? "text-ocean" : cyc.cycle === "fasad" ? "text-warn" : "text-ink-2")}>
+                {t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}
+              </span>
             </div>
             {warn.length > 0 && (
               <div className="mt-2 flex items-start gap-1.5 rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">
