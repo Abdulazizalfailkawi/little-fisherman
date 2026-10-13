@@ -219,7 +219,7 @@ export default function MarineHome() {
   return (
     <>
       {/* Header */}
-      <header className="no-print mb-3 pb-1" style={{ paddingTop: `calc(var(--safe-top) + ${headerTop}px)` }}>
+      <header className="no-print mb-3 pb-1" style={{ paddingTop: `calc(var(--safe-top) + ${isAdmin ? headerTop : 52}px)` }}>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex justify-start">
             <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
@@ -689,6 +689,7 @@ export default function MarineHome() {
               ]}
             />
           </div>
+          {isAdmin && (
           <div>
             <div className="mb-2 flex items-center justify-between text-sm font-medium">
               <span>{t("موضع الشعار (فوق / تحت)", "Logo position (up / down)")}</span>
@@ -726,6 +727,7 @@ export default function MarineHome() {
               <span>{t("أنزل", "Lower")}</span>
             </div>
           </div>
+          )}
           <div>
             <div className="mb-2 text-sm font-medium">{t("اللغة", "Language")}</div>
             <Choice<"ar" | "en">
