@@ -5,7 +5,7 @@
 // conditions for the selected fishing spot. All times in Asia/Kuwait.
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
 import { LocationForm } from "@/components/LocationForm";
@@ -104,15 +104,20 @@ export default function MarineHome() {
     [ds.locations],
   );
 
-  // The four main areas are added once per device; an existing spot with the
-  // same name is never overwritten or duplicated.
+  // The four main areas are added once per device — and again whenever the
+  // device has no spot at all (e.g. its data was cleared), so the sea screen
+  // always works with or without an account. An existing spot with the same
+  // name is never overwritten or duplicated.
+  const seeding = useRef(false);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || seeding.current) return;
     let done = false;
     try {
       done = localStorage.getItem("ft.presetSpots") === "1";
     } catch {}
-    if (done) return;
+    const hasSpot = ds.locations.some((l) => l.lat != null && l.lng != null);
+    if (done && hasSpot) return;
+    seeding.current = true;
     try {
       localStorage.setItem("ft.presetSpots", "1");
     } catch {}
@@ -138,8 +143,9 @@ export default function MarineHome() {
           updated_at: ts,
         });
       }
+      seeding.current = false;
     })();
-  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, ds.locations.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setUnit(readWindUnit()), []);
   useEffect(() => {
     if (spotId || !spots.length) return;
