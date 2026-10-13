@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+// One id per build (Vercel: the git commit) so open apps can tell a newer deployment exists.
+const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? String(Date.now());
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   reactStrictMode: true,
   // Another lockfile exists higher up the user's folder tree; pin the root.
   turbopack: { root: path.resolve(__dirname) },

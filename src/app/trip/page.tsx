@@ -15,6 +15,7 @@ import { MOON_EMOJI, effectiveMoonPhase, moonAt } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
 import { EQUIP_LABEL, MOON_LABEL, SEA_LABEL, TIDE_LABEL, WIND_LABEL, label, useI18n } from "@/lib/i18n";
 import { fmtDateTime, tripHours } from "@/lib/time";
+import { fmtDepth, fmtDepthRange, useDepthUnit } from "@/lib/depth";
 
 export default function Page() {
   return (
@@ -40,6 +41,7 @@ function TripDetail() {
   const toast = useToast();
   const now = useNow(30_000);
   const { t, lang, name, num } = useI18n();
+  const du = useDepthUnit();
   const router = useRouter();
   const [confirmDel, setConfirmDel] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -194,7 +196,7 @@ function TripDetail() {
         {trip.lat != null && <Row k="GPS" v={<span className="ltr">{trip.lat}, {trip.lng}</span>} />}
         <Row k={t("الطريقة", "Technique")} v={tech ? name(tech) : "—"} />
         <Row k={t("المستهدف", "Target")} v={targets.length ? targets.map((x) => name(idx.speciesById.get(x))).join("، ") : "—"} />
-        <Row k={t("العمق المستهدف", "Target depth")} v={trip.target_depth_m != null ? `${trip.target_depth_m}${trip.target_depth_max_m != null ? `–${trip.target_depth_max_m}` : ""} ${t("م", "m")}` : "—"} />
+        <Row k={t("العمق المستهدف", "Target depth")} v={fmtDepthRange(trip.target_depth_m, trip.target_depth_max_m, du, lang)} />
         {trip.lure_type && <Row k={t("الطُعم / الجك", "Lure / jig")} v={[trip.lure_type, trip.lure_weight_g ? `${trip.lure_weight_g} ${t("غ", "g")}` : null, trip.lure_color, trip.lure_size].filter(Boolean).join(" · ")} />}
         {trip.trolling_speed_kn != null && <Row k={t("سرعة التشخيط", "Trolling speed")} v={`${trip.trolling_speed_kn} ${t("عقدة", "kn")}`} />}
         {trip.planned_start_at && <Row k={t("الموعد المخطط", "Planned start")} v={fmtDateTime(trip.planned_start_at, lang)} />}
@@ -213,7 +215,7 @@ function TripDetail() {
           k={t("الرياح", "Wind")}
           v={trip.wind_speed_kmh != null || trip.wind_dir ? `${trip.wind_speed_kmh ?? "—"} ${t("كم/س", "km/h")} ${trip.wind_dir ? label(WIND_LABEL, trip.wind_dir, lang) : ""}` : "—"}
         />
-        <Row k={t("العمق", "Depth")} v={trip.water_depth_m != null ? `${trip.water_depth_m} ${t("م", "m")}` : "—"} />
+        <Row k={t("العمق", "Depth")} v={fmtDepth(trip.water_depth_m, du, lang)} />
         <Row k={t("الطقس", "Weather")} v={trip.weather ?? "—"} />
         <Row k="PE" v={trip.line_pe ?? "—"} />
         <Row k={t("الطُعم", "Lure / bait")} v={trip.lure_bait ?? "—"} />

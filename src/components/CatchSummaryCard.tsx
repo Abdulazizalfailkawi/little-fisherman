@@ -8,13 +8,15 @@ import { readWindUnit } from "@/lib/marine/units";
 import { catchSummary, summaryText } from "@/lib/summary";
 import type { Catch } from "@/lib/types";
 import { Button, Card } from "./ui";
+import { useDepthUnit } from "@/lib/depth";
 
 /** Automatic summary, regenerated from the saved records on every render. */
 export function CatchSummaryCard({ c }: { c: Catch }) {
   const { ds, idx, hijriOffset } = useStore();
   const { t, lang } = useI18n();
+  const du = useDepthUnit();
   const [copied, setCopied] = useState(false);
-  const s = useMemo(() => catchSummary(ds, idx, c, lang, readWindUnit(), hijriOffset), [ds, idx, c, lang, hijriOffset]);
+  const s = useMemo(() => catchSummary(ds, idx, c, lang, readWindUnit(), hijriOffset, du), [ds, idx, c, lang, hijriOffset, du]);
   return (
     <Card className="space-y-2 border-teal/30">
       <div className="flex items-center justify-between gap-2">

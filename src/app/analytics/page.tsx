@@ -35,7 +35,8 @@ import {
 import { fmtMonthName, fmtWeekday, todayKey } from "@/lib/time";
 import { MOON_PHASES, type MoonPhase, type SeaState, type Tide } from "@/lib/types";
 import { tripEnv } from "@/lib/marine/env";
-import { DEPTH_BUCKETS, WAVE_BUCKETS, WIND_BUCKETS_KN, depthBucket, waveBucket, windBucketKn } from "@/lib/speciesAnalytics";
+import { depthBuckets, WAVE_BUCKETS, WIND_BUCKETS_KN, depthBucket, waveBucket, windBucketKn } from "@/lib/speciesAnalytics";
+import { depthWord, useDepthUnit } from "@/lib/depth";
 
 function GroupTable({ groups, labelOf, missing, missingLabel }: { groups: GroupStat[]; labelOf: (k: string) => React.ReactNode; missing?: number; missingLabel?: string }) {
   const { t, num } = useI18n();
@@ -117,6 +118,7 @@ function Compare({ a, b, labelA, labelB }: { a?: GroupStat; b?: GroupStat; label
 export default function StatsPage() {
   const { ds, idx, hijriOffset } = useStore();
   const { t, lang, name, num } = useI18n();
+  const du = useDepthUnit();
   const [f, setF] = useState<Filters>({});
 
   const rows = useMemo(() => tripRows(ds, idx, f, hijriOffset), [ds, idx, f, hijriOffset]);
@@ -145,7 +147,7 @@ export default function StatsPage() {
     const w = envByTrip.get(r.trip.id)?.wave;
     return w ? waveBucket(w.value) : null;
   });
-  const depthG = groupRows(rows, (r) => (r.trip.water_depth_m != null ? depthBucket(r.trip.water_depth_m) : null));
+  const depthG = groupRows(rows, (r) => (r.trip.water_depth_m != null ? depthBucket(r.trip.water_depth_m, du) : null));
   const order = (keys: readonly string[]) => (a: GroupStat, b: GroupStat) => keys.indexOf(a.key) - keys.indexOf(b.key);
 
   // Species x technique (what works for each species)
@@ -305,7 +307,7 @@ export default function StatsPage() {
           <SectionTitle>{t("ارتفاع الموج عند بداية الرحلة (م)", "Wave height at trip start (m)")}</SectionTitle>
           <GroupTable groups={[...waveG.groups].sort(order(WAVE_BUCKETS))} labelOf={(k) => k} missing={waveG.missing} missingLabel={t("{n} رحلة بدون بيانات موج — مستبعدة", "{n} trips without wave data — excluded")} />
           <SectionTitle>{t("العمق (م)", "Depth (m)")}</SectionTitle>
-          <GroupTable groups={[...depthG.groups].sort(order(DEPTH_BUCKETS))} labelOf={(k) => k} missing={depthG.missing} missingLabel={t("{n} رحلة بدون عمق مسجل", "{n} trips without a recorded depth")} />
+          <GroupTable groups={[...depthG.groups].sort(order(depthBuckets(du)))} labelOf={(k) => `${k} ${depthWord(du, "ar")}`} missing={depthG.missing} missingLabel={t("{n} رحلة بدون عمق مسجل", "{n} trips without a recorded depth")} />
           <p className="mt-1 px-1 text-xs text-muted">{t("الرياح والموج من لقطات الظروف المحفوظة للرحلة (توقعات/نماذج) أو من إدخالك اليدوي.", "Wind and waves come from each trip's saved condition snapshot (forecast/model) or your manual entry.")}</p>
 
           <SectionTitle>{t("الأنواع الأكثر صيداً", "Most caught species")}</SectionTitle>

@@ -8,14 +8,17 @@ import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import { MIN_SAMPLE, groupRows, pct, type TripRow } from "@/lib/stats";
 import type { Catch } from "@/lib/types";
+import { depthWord, toUnit, useDepthUnit } from "@/lib/depth";
 
 export function AnalyticsExtra({ rows, catches }: { rows: TripRow[]; catches: Catch[] }) {
   const { ds, idx } = useStore();
   const { t, name, num } = useI18n();
-  const [binSize, setBinSize] = useState<"5" | "10" | "20">("5");
+  const du = useDepthUnit();
+  const dw = depthWord(du, "ar");
+  const [binSize, setBinSize] = useState<"5" | "10" | "20" | "50">("10");
   const perf = useMemo(() => targetPerformance(ds, rows), [ds, rows]);
-  const depth = useMemo(() => depthBins(catches, Number(binSize)), [catches, binSize]);
-  const tva = useMemo(() => targetVsActual(catches, idx), [catches, idx]);
+  const depth = useMemo(() => depthBins(catches, Number(binSize), du), [catches, binSize, du]);
+  const tva = useMemo(() => targetVsActual(catches, idx, du === "ft" ? 0.9144 : 1), [catches, idx, du]);
   const lures = useMemo(() => lurePerformance(idx, catches, rows), [idx, catches, rows]);
   const phases = useMemo(() => catchTidePhases(ds, catches), [ds, catches]);
   const turns = useMemo(() => catchesByTurn(ds, catches), [ds, catches]);
@@ -75,7 +78,7 @@ export function AnalyticsExtra({ rows, catches }: { rows: TripRow[]; catches: Ca
       <Card className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted">{t("حجم الفئة (م)", "Bin size (m)")}</span>
-          <Choice value={binSize} allowClear={false} onChange={(v) => v && setBinSize(v)} options={[{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }]} />
+          <Choice value={binSize} allowClear={false} onChange={(v) => v && setBinSize(v as "5" | "10" | "20" | "50")} options={(du === "ft" ? ["10", "20", "50"] : ["5", "10", "20"]).map((v) => ({ value: v, label: v }))} />
         </div>
         {depth.bins.map((b) => (
           <div key={b.label} className="text-sm">
@@ -97,8 +100,8 @@ export function AnalyticsExtra({ rows, catches }: { rows: TripRow[]; catches: Ca
           {t(`${depth.known} صيدة بعمق مسجل، ${depth.missing} بدون عمق (مستبعدة، لا تُحسب صفراً).`, `${depth.known} catches with a recorded depth, ${depth.missing} without (excluded, not zero).`)}
           {tva.n > 0 &&
             t(
-              ` المخطط مقابل الفعلي: ${tva.within} من ${tva.n} داخل النطاق المخطط (±1م)، والفرق المتوسط ${num(tva.avgDiff, 1)} م.`,
-              ` Planned vs actual: ${tva.within} of ${tva.n} inside the planned range (±1 m), average difference ${num(tva.avgDiff, 1)} m.`,
+              ` المخطط مقابل الفعلي: ${tva.within} من ${tva.n} داخل النطاق المخطط (±${du === "ft" ? 3 : 1} ${dw})، والفرق المتوسط ${num(toUnit(tva.avgDiff, du), 1)} ${dw}.`,
+              ` Planned vs actual: ${tva.within} of ${tva.n} inside the planned range (±${du === "ft" ? 3 : 1} ${dw}), average difference ${num(toUnit(tva.avgDiff, du), 1)} ${dw}.`,
             )}
         </p>
       </Card>

@@ -11,6 +11,7 @@ import type { Catch, Trip } from "@/lib/types";
 import { elapsed, statusOf, targetsOf } from "@/lib/trips";
 import { useMediaUrl } from "@/lib/useMedia";
 import { Badge, cn } from "./ui";
+import { fmtDepthRange, useDepthUnit } from "@/lib/depth";
 
 export function Photo({
   mediaId,
@@ -64,6 +65,7 @@ export function DualDate({ iso, override, className }: { iso: string; override?:
 export function TripCard({ trip }: { trip: Trip }) {
   const { ds, idx, isPending } = useStore();
   const { lang, t, name, num } = useI18n();
+  const du = useDepthUnit();
   const catches = idx.catchesByTrip.get(trip.id) ?? [];
   const loc = trip.location_id ? idx.locById.get(trip.location_id) : null;
   const tech = trip.technique_id ? idx.techById.get(trip.technique_id) : null;
@@ -105,12 +107,7 @@ export function TripCard({ trip }: { trip: Trip }) {
               🎯 {name(idx.speciesById.get(s))}
             </Badge>
           ))}
-          {trip.target_depth_m != null && (
-            <span className="text-muted">
-              {trip.target_depth_m}
-              {trip.target_depth_max_m != null ? `–${trip.target_depth_max_m}` : ""} {t("م", "m")}
-            </span>
-          )}
+          {trip.target_depth_m != null && <span className="text-muted">{fmtDepthRange(trip.target_depth_m, trip.target_depth_max_m, du, lang)}</span>}
           {st === "active" && <span className="text-warn">{elapsed(trip.started_at, Date.now(), lang)}</span>}
           {h != null && <span className="text-muted">{num(h)} {t("س", "h")}</span>}
           {species.map((s) => (

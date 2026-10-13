@@ -17,6 +17,7 @@ import { activeTrip, setTargets, statusOf, targetsOf } from "@/lib/trips";
 import { fromLocalInput, nowLocalInput, toLocalInput } from "@/lib/time";
 import { SEA_STATES, TIDES, WIND_DIRS, type Trip } from "@/lib/types";
 import { validateTrip } from "@/lib/validate";
+import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
 
 export default function Page() {
   return (
@@ -34,6 +35,8 @@ function TripEdit() {
   const store = useStore();
   const { ds, idx, save, remove } = store;
   const { t, lang, name } = useI18n();
+  const du = useDepthUnit();
+  const dw = depthWord(du, lang);
   const toast = useToast();
   const router = useRouter();
   const existing = id ? idx.tripById.get(id) : undefined;
@@ -183,12 +186,12 @@ function TripEdit() {
             <LocationPicker value={trip.location_id} onChange={(v) => set("location_id", v)} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={range ? t("العمق من (م)", "Depth from (m)") : t("العمق المستهدف (م)", "Target depth (m)")} error={errText("target_depth_m")}>
-              <NumberInput value={trip.target_depth_m ?? null} onChange={(v) => set("target_depth_m", v)} />
+            <Field label={range ? t(`العمق من (${dw})`, `Depth from (${dw})`) : t(`العمق المستهدف (${dw})`, `Target depth (${dw})`)} error={errText("target_depth_m")}>
+              <NumberInput value={toUnit(trip.target_depth_m, du)} onChange={(v) => set("target_depth_m", fromUnit(v, du))} />
             </Field>
             {range ? (
-              <Field label={t("إلى (م)", "to (m)")} error={errText("target_depth_max_m")}>
-                <NumberInput value={trip.target_depth_max_m ?? null} onChange={(v) => set("target_depth_max_m", v)} />
+              <Field label={t(`إلى (${dw})`, `to (${dw})`)} error={errText("target_depth_max_m")}>
+                <NumberInput value={toUnit(trip.target_depth_max_m, du)} onChange={(v) => set("target_depth_max_m", fromUnit(v, du))} />
               </Field>
             ) : (
               <div className="flex items-end">
@@ -275,8 +278,8 @@ function TripEdit() {
               <Input value={trip.gear_notes ?? ""} onChange={(e) => set("gear_notes", e.target.value || null)} />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={t("عمق الماء الفعلي (م)", "Actual water depth (m)")} error={errText("water_depth_m")}>
-                <NumberInput value={trip.water_depth_m} onChange={(v) => set("water_depth_m", v)} />
+              <Field label={t(`عمق الماء الفعلي (${dw})`, `Actual water depth (${dw})`)} error={errText("water_depth_m")}>
+                <NumberInput value={toUnit(trip.water_depth_m, du)} onChange={(v) => set("water_depth_m", fromUnit(v, du))} />
               </Field>
               <Field label={t("حالة البحر", "Sea state")}>
                 <Select value={trip.sea_state} onChange={(v) => set("sea_state", v as Trip["sea_state"])} options={SEA_STATES.map((x) => ({ value: x, label: SEA_LABEL[x][lang] }))} />

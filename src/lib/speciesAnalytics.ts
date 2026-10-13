@@ -12,6 +12,7 @@ import { MIN_SAMPLE, type Index } from "./stats";
 import { kwParts } from "./time";
 import { targetsOf } from "./trips";
 import type { Dataset, Trip } from "./types";
+import { FT_PER_M, readDepthUnit, type DepthUnit } from "./depth";
 
 export interface RateGroup {
   key: string;
@@ -38,7 +39,18 @@ export function timeBucket(hour: number): TimeBucket {
 }
 
 export const DEPTH_BUCKETS = ["0-5", "5-10", "10-20", "20-30", "30+"] as const;
-export function depthBucket(d: number): (typeof DEPTH_BUCKETS)[number] {
+export const DEPTH_BUCKETS_FT = ["0-15", "15-30", "30-60", "60-100", "100+"] as const;
+export const depthBuckets = (unit: DepthUnit): readonly string[] => (unit === "ft" ? DEPTH_BUCKETS_FT : DEPTH_BUCKETS);
+/** `d` is in metres; buckets are in the chosen display unit. */
+export function depthBucket(d: number, unit: DepthUnit = readDepthUnit()): string {
+  if (unit === "ft") {
+    const f = d * FT_PER_M;
+    if (f < 15) return "0-15";
+    if (f < 30) return "15-30";
+    if (f < 60) return "30-60";
+    if (f < 100) return "60-100";
+    return "100+";
+  }
   if (d < 5) return "0-5";
   if (d < 10) return "5-10";
   if (d < 20) return "10-20";

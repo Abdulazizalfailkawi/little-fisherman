@@ -12,6 +12,7 @@ import { catchLocation, catchTechnique, type Index } from "./stats";
 import { fmtDate, fmtTime } from "./time";
 import { targetsOf } from "./trips";
 import type { Catch, Dataset, EnvKind } from "./types";
+import { fmtDepth, type DepthUnit } from "./depth";
 
 type Lang = "ar" | "en";
 
@@ -57,7 +58,7 @@ export function speciesOrdinal(ds: Dataset, c: Catch): number | null {
   return i >= 0 ? i + 1 : null;
 }
 
-export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, windUnit: WindUnit = "kn", hijriOffset = 0): CatchSummary {
+export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, windUnit: WindUnit = "kn", hijriOffset = 0, depthUnit: DepthUnit = "m"): CatchSummary {
   const ar = lang === "ar";
   const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
   const trip = idx.tripById.get(c.trip_id ?? "");
@@ -81,12 +82,12 @@ export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, wind
   const headline = ar
     ? `سجّلت صيدة ${spName}${place ? ` في ${place}` : ""} بتاريخ ${date} (${fmtHijri(hijri, "ar")}) الساعة ${time}` +
       (techName ? ` باستخدام ${techName}` : "") +
-      (c.depth_m != null ? ` وعلى عمق ${c.depth_m} متر` : "") +
+      (c.depth_m != null ? ` وعلى عمق ${fmtDepth(c.depth_m, depthUnit, "ar")}` : "") +
       (trip ? `، ضمن ${tripName ? `رحلة «${tripName}»` : "رحلة"}` : "") +
       "."
     : `You logged ${spName}${place ? ` at ${place}` : ""} on ${date} (${fmtHijri(hijri, "en")}) at ${time}` +
       (techName ? ` using ${techName}` : "") +
-      (c.depth_m != null ? ` at ${c.depth_m} m depth` : "") +
+      (c.depth_m != null ? ` at ${fmtDepth(c.depth_m, depthUnit, "en")} depth` : "") +
       (trip ? `, on ${tripName ? `the trip “${tripName}”` : "a trip"}` : "") +
       ".";
 
@@ -97,7 +98,7 @@ export function catchSummary(ds: Dataset, idx: Index, c: Catch, lang: Lang, wind
   const p = <T,>(x: Prov<T> | null, f: (v: T) => string) => (x ? f(x.value) + tag(x.kind, lang) : null);
 
   add("طريقة الصيد", "Technique", tech ? (ar ? tech.name_ar : tech.name_en) : null);
-  add("العمق", "Depth", c.depth_m != null ? `${c.depth_m} ${ar ? "م" : "m"}` : trip?.water_depth_m != null ? `${trip.water_depth_m} ${ar ? "م" : "m"}${ar ? " (عمق الرحلة)" : " (trip depth)"}` : null);
+  add("العمق", "Depth", c.depth_m != null ? fmtDepth(c.depth_m, depthUnit, lang) : trip?.water_depth_m != null ? `${fmtDepth(trip.water_depth_m, depthUnit, lang)}${ar ? " (عمق الرحلة)" : " (trip depth)"}` : null);
   add(
     "القياسات",
     "Measurements",

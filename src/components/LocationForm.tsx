@@ -11,6 +11,7 @@ import { normalizeName } from "@/lib/normalize";
 import type { Location } from "@/lib/types";
 import { getGps } from "@/lib/gps";
 import { Button, Choice, Field, Input, NumberInput, Select, Textarea, Toggle } from "./ui";
+import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
 
 const MapPicker = dynamic(() => import("./MapPicker").then((m) => m.MapPicker), {
   ssr: false,
@@ -20,6 +21,7 @@ const MapPicker = dynamic(() => import("./MapPicker").then((m) => m.MapPicker), 
 export function LocationForm({ initial, onDone }: { initial?: Location; onDone: (id: string | null) => void }) {
   const { ds, save } = useStore();
   const { t, lang } = useI18n();
+  const du = useDepthUnit();
   const [nameV, setName] = useState(initial?.name ?? "");
   const [nameEn, setNameEn] = useState(initial?.name_en ?? "");
   const [area, setArea] = useState(initial?.area ?? "");
@@ -78,8 +80,8 @@ export function LocationForm({ initial, onDone }: { initial?: Location; onDone: 
         <Field label={t("المنطقة", "Area")}>
           <Input value={area} onChange={(e) => setArea(e.target.value)} />
         </Field>
-        <Field label={t("العمق المعتاد (م)", "Typical depth (m)")}>
-          <NumberInput value={depth} onChange={setDepth} />
+        <Field label={t(`العمق المعتاد (${depthWord(du, lang)})`, `Typical depth (${depthWord(du, lang)})`)}>
+          <NumberInput value={toUnit(depth, du)} onChange={(v) => setDepth(fromUnit(v, du))} />
         </Field>
       </div>
       <Choice

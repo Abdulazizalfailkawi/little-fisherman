@@ -11,6 +11,7 @@ import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import { TIDE_STATIONS } from "@/lib/marine/stations";
 import { catchLocation, pct, speciesCounts, summarize, tripRows } from "@/lib/stats";
+import { fmtDepth, useDepthUnit } from "@/lib/depth";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker").then((m) => m.MapPicker), { ssr: false });
 
@@ -26,6 +27,7 @@ function SpotPage() {
   const id = useSearchParams().get("id");
   const { ds, idx, save, remove } = useStore();
   const { t, lang, name, num } = useI18n();
+  const du = useDepthUnit();
   const router = useRouter();
   const [edit, setEdit] = useState(false);
   const loc = id ? idx.locById.get(id) : undefined;
@@ -69,7 +71,7 @@ function SpotPage() {
         )}
         {loc.typical_depth_m != null && (
           <Badge>
-            {t("العمق المعتاد", "Typical depth")} {loc.typical_depth_m} m
+            {t("العمق المعتاد", "Typical depth")} {fmtDepth(loc.typical_depth_m, du, lang)}
           </Badge>
         )}
         {station && <Badge tone="ocean">{station[lang]}</Badge>}

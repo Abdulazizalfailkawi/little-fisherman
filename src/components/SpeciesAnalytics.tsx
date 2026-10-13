@@ -14,6 +14,7 @@ import { compass, fmtWind, readWindUnit } from "@/lib/marine/units";
 import { speciesTargetAnalytics, type Breakdown } from "@/lib/speciesAnalytics";
 import { MIN_SAMPLE, catchDepth, catchLocation, catchTechnique, pct } from "@/lib/stats";
 import type { MoonPhase, Species, Tide } from "@/lib/types";
+import { depthWord, fmtDepthRange, toUnit, useDepthUnit } from "@/lib/depth";
 
 const TIME_LABEL: Record<string, [string, string]> = {
   night: ["ليل (٠٠–٠٤)", "Night (00–04)"],
@@ -54,6 +55,7 @@ function Table({ title, b, label }: { title: string; b: Breakdown; label: (k: st
 export function SpeciesAnalytics({ sp }: { sp: Species }) {
   const { ds, idx } = useStore();
   const { t, lang, name } = useI18n();
+  const du = useDepthUnit();
   const unit = readWindUnit();
   const a = useMemo(() => speciesTargetAnalytics(ds, idx, sp.id), [ds, idx, sp.id]);
   const catches = useMemo(() => ds.catches.filter((c) => c.species_id === sp.id).sort((x, y) => y.caught_at.localeCompare(x.caught_at)), [ds.catches, sp.id]);
@@ -135,9 +137,9 @@ export function SpeciesAnalytics({ sp }: { sp: Species }) {
                       <div className="text-ink-2">
                         {(() => {
                           const tr = c.trip_id ? idx.tripById.get(c.trip_id) : undefined;
-                          const planned = tr?.target_depth_m != null ? `${tr.target_depth_m}${tr.target_depth_max_m != null ? `–${tr.target_depth_max_m}` : ""}` : null;
+                          const planned = tr?.target_depth_m != null ? fmtDepthRange(tr.target_depth_m, tr.target_depth_max_m, du, lang) : null;
                           return [
-                            planned || d ? `${t("العمق", "Depth")}: ${planned ? `${t("مخطط", "planned")} ${planned}` : ""}${planned && d ? " / " : ""}${d ? `${t("فعلي", "actual")} ${d.depth}${d.fromTrip ? "*" : ""}` : ""} ${t("م", "m")}` : null,
+                            planned || d ? `${t("العمق", "Depth")}: ${planned ? `${t("مخطط", "planned")} ${planned}` : ""}${planned && d ? " / " : ""}${d ? `${t("فعلي", "actual")} ${toUnit(d.depth, du)}${d.fromTrip ? "*" : ""} ${depthWord(du, lang)}` : ""}` : null,
                             c.lure_bait ? `${c.lure_bait}${c.lure_weight_g ? ` ${c.lure_weight_g}${t("غ", "g")}` : ""}${c.lure_color ? ` ${c.lure_color}` : ""}` : null,
                             tr ? `${t("رحلة", "trip")}: ${tr.title || (tr.location_id && idx.locById.get(tr.location_id)?.name) || "—"}` : t("بدون رحلة", "no trip"),
                           ]

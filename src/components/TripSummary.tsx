@@ -13,10 +13,12 @@ import { targetsOf } from "@/lib/trips";
 import { tripHours } from "@/lib/time";
 import type { Trip } from "@/lib/types";
 import { Badge, Button, Card, Field, Textarea } from "./ui";
+import { fmtDepthRange, useDepthUnit } from "@/lib/depth";
 
 export function TripSummary({ trip }: { trip: Trip }) {
   const { ds, idx, save } = useStore();
   const { t, lang, name, num } = useI18n();
+  const du = useDepthUnit();
   const [worked, setWorked] = useState(trip.what_worked ?? "");
   const [next, setNext] = useState(trip.next_time ?? "");
   const [saved, setSaved] = useState(false);
@@ -63,10 +65,8 @@ export function TripSummary({ trip }: { trip: Trip }) {
         <Row
           k={t("العمق: مخطط / فعلي", "Depth: planned / actual")}
           v={(() => {
-            const u = t("م", "m");
-            const range = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`);
-            const planned = trip.target_depth_m != null ? `${range(trip.target_depth_m, trip.target_depth_max_m ?? trip.target_depth_m)} ${u}` : "—";
-            const actual = depths.length ? `${range(Math.min(...depths), Math.max(...depths))} ${u}` : "—";
+            const planned = fmtDepthRange(trip.target_depth_m, trip.target_depth_max_m, du, lang);
+            const actual = depths.length ? fmtDepthRange(Math.min(...depths), Math.max(...depths), du, lang) : "—";
             return (
               <>
                 <bdi>{planned}</bdi> / <bdi>{actual}</bdi>

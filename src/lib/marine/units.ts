@@ -35,7 +35,7 @@ export function readWindUnit(): WindUnit {
     const v = localStorage.getItem("ft.windUnit");
     if (v === "kn" || v === "ms" || v === "kmh") return v;
   } catch {}
-  return "kn";
+  return "kmh";
 }
 export function saveWindUnit(u: WindUnit) {
   try {

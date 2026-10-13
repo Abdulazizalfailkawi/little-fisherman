@@ -18,6 +18,7 @@ import { normalizeName } from "./normalize";
 import { MIN_SAMPLE, type Index, type TripRow } from "./stats";
 import { targetsOf } from "./trips";
 import type { Catch, Dataset } from "./types";
+import { toUnit, type DepthUnit } from "./depth";
 
 export interface TargetPerf {
   speciesId: string;
@@ -55,11 +56,11 @@ export interface DepthBin {
   bySpecies: Record<string, number>;
 }
 
-export function depthBins(catches: Catch[], size = 5): { bins: DepthBin[]; known: number; missing: number } {
+export function depthBins(catches: Catch[], size = 5, unit: DepthUnit = "m"): { bins: DepthBin[]; known: number; missing: number } {
   const known = catches.filter((c) => c.depth_m != null);
   const map = new Map<number, DepthBin>();
   for (const c of known) {
-    const from = Math.floor(c.depth_m! / size) * size;
+    const from = Math.floor((toUnit(c.depth_m, unit) ?? 0) / size) * size;
     const b = map.get(from) ?? { label: `${from}–${from + size}`, from, count: 0, bySpecies: {} };
     b.count++;
     const k = c.species_id ?? "none";
@@ -70,14 +71,14 @@ export function depthBins(catches: Catch[], size = 5): { bins: DepthBin[]; known
 }
 
 /** Planned target depth vs actual catch depth (only when both are recorded). */
-export function targetVsActual(catches: Catch[], idx: Index): { n: number; avgDiff: number | null; within: number } {
+export function targetVsActual(catches: Catch[], idx: Index, tolM = 1): { n: number; avgDiff: number | null; within: number } {
   const pairs = catches
     .map((c) => {
       const t = c.trip_id ? idx.tripById.get(c.trip_id) : undefined;
       if (!t || t.target_depth_m == null || c.depth_m == null) return null;
       const lo = t.target_depth_m;
       const hi = t.target_depth_max_m ?? t.target_depth_m;
-      return { diff: c.depth_m - (lo + hi) / 2, within: c.depth_m >= lo - 1 && c.depth_m <= hi + 1 };
+      return { diff: c.depth_m - (lo + hi) / 2, within: c.depth_m >= lo - tolM && c.depth_m <= hi + tolM };
     })
     .filter((x): x is { diff: number; within: boolean } => !!x);
   return {

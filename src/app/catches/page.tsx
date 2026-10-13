@@ -15,10 +15,12 @@ import { matches } from "@/lib/normalize";
 import { catchLocation, catchTechnique, type Filters } from "@/lib/stats";
 import { catchSummary } from "@/lib/summary";
 import { dateKey } from "@/lib/time";
+import { useDepthUnit } from "@/lib/depth";
 
 export default function CatchHistoryPage() {
   const { ds, idx, hijriOffset } = useStore();
   const { t, lang, name } = useI18n();
+  const du = useDepthUnit();
   const [f, setF] = useState<Filters>({});
   const [sort, setSort] = useState<"new" | "old">("new");
   const [unlinked, setUnlinked] = useState(false);
@@ -84,7 +86,7 @@ export default function CatchHistoryPage() {
             const sp = c.species_id ? idx.speciesById.get(c.species_id) : null;
             const locId = catchLocation(c, idx);
             const techId = catchTechnique(c, idx);
-            const s = catchSummary(ds, idx, c, lang, unit, hijriOffset);
+            const s = catchSummary(ds, idx, c, lang, unit, hijriOffset, du);
             return (
               <Link key={c.id} href={`/catch?id=${c.id}`} className="flex gap-3 rounded-[var(--radius-card)] border border-line/70 bg-surface/80 p-3 hover:bg-surface-2">
                 <Photo mediaId={c.photo_media_id} className="size-20 shrink-0 rounded-2xl" />

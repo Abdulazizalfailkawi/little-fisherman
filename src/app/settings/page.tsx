@@ -16,6 +16,7 @@ import { fmtHijri, hijriCalendarName, toHijri } from "@/lib/hijri";
 import { useI18n } from "@/lib/i18n";
 import { supabaseConfigured } from "@/lib/supabase";
 import { readWindUnit, saveWindUnit, type WindUnit } from "@/lib/marine/units";
+import { saveDepthUnit, useDepthUnit } from "@/lib/depth";
 import { DEFAULT_CYCLE, formatRanges, overlaps, parseRanges, readCycleConfig, saveCycleConfig } from "@/lib/tidecycle";
 import { tripRows } from "@/lib/stats";
 import { fmtDateTime, todayKey } from "@/lib/time";
@@ -23,7 +24,7 @@ import { TABLE_ORDER, type Dataset } from "@/lib/types";
 
 function WindUnitChoice() {
   const { t } = useI18n();
-  const [u, setU] = useState<WindUnit>("kn");
+  const [u, setU] = useState<WindUnit>("kmh");
   useEffect(() => setU(readWindUnit()), []);
   return (
     <Choice
@@ -35,9 +36,25 @@ function WindUnitChoice() {
         saveWindUnit(v);
       }}
       options={[
-        { value: "kn", label: t("عقدة", "knots") },
         { value: "kmh", label: t("كم/س", "km/h") },
+        { value: "kn", label: t("عقدة", "knots") },
         { value: "ms", label: t("م/ث", "m/s") },
+      ]}
+    />
+  );
+}
+
+function DepthUnitChoice() {
+  const { t } = useI18n();
+  const u = useDepthUnit();
+  return (
+    <Choice
+      value={u}
+      allowClear={false}
+      onChange={(v) => v && saveDepthUnit(v)}
+      options={[
+        { value: "ft", label: t("قدم", "feet") },
+        { value: "m", label: t("متر", "metres") },
       ]}
     />
   );
@@ -227,6 +244,11 @@ export default function SettingsPage() {
       <SectionTitle>{t("وحدة الرياح", "Wind unit")}</SectionTitle>
       <Card>
         <WindUnitChoice />
+      </Card>
+
+      <SectionTitle>{t("وحدة العمق", "Depth unit")}</SectionTitle>
+      <Card>
+        <DepthUnitChoice />
       </Card>
 
       <SectionTitle>{t("التاريخ الهجري", "Hijri date")}</SectionTitle>

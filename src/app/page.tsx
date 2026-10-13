@@ -6,12 +6,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
 import { LocationForm } from "@/components/LocationForm";
 import { ManualTideForm, readManualTide } from "@/components/ManualTide";
 import { TideChart } from "@/components/TideChart";
-import { Badge, Button, Card, Empty, LinkButton, Notice, Sheet, Spinner, cn } from "@/components/ui";
+import { Badge, Button, Card, Choice, Empty, LinkButton, Notice, Sheet, Spinner, cn } from "@/components/ui";
 import { SyncBadge } from "@/components/SyncBadge";
 import { MOON_EMOJI, moonAt, sunTimes } from "@/lib/astro";
 import { useStore } from "@/lib/db/store";
@@ -22,7 +22,9 @@ import { MOON_LABEL, useI18n } from "@/lib/i18n";
 import { getConditions, hazards, hourAt, turnsOf, type ConditionsResult } from "@/lib/marine/client";
 import { PRESET_SPOTS, presetRank } from "@/lib/marine/presets";
 import { KMC_MARINE_URL } from "@/lib/marine/stations";
-import { compass, fmtWind, readWindUnit, type WindUnit } from "@/lib/marine/units";
+import { compass, fmtWind, readWindUnit, saveWindUnit, type WindUnit } from "@/lib/marine/units";
+import { saveDepthUnit, useDepthUnit, type DepthUnit } from "@/lib/depth";
+import { checkForUpdate } from "@/lib/update";
 import { tideState, turningPointsFromEvents, type TurnEvent } from "@/lib/marine/waqfa";
 import { CYCLE_LABEL, cycleInfo, readCycleConfig } from "@/lib/tidecycle";
 import { dateKey, fmtDate, fmtDateTime, fmtTime } from "@/lib/time";
@@ -65,7 +67,10 @@ function Tile({ icon, title, tone, aside, hint, open, onToggle, className, child
 export default function MarineHome() {
   const store = useStore();
   const { ds, idx, online, hijriOffset, ready, save } = store;
-  const { t, lang } = useI18n();
+  const { t, lang, setLang } = useI18n();
+  const depthUnit = useDepthUnit();
+  const [setOpen, setSetOpen] = useState(false);
+  const [upd, setUpd] = useState<string | null>(null);
   const now = useNow(1000);
   const [unit, setUnit] = useState<WindUnit>("kn");
   const [spotId, setSpotId] = useState<string | null>(null);
@@ -210,36 +215,27 @@ export default function MarineHome() {
     <>
       {/* Header */}
       <header className="no-print sticky top-0 z-30 -mx-4 mb-3 border-b border-line/40 bg-navy/85 px-4 pb-3 pt-[calc(var(--safe-top)+0.75rem)] backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <img src="/icons/sajji-mark.svg" alt="" className="size-9 shrink-0" />
-            <div className="leading-tight">
-              <div className="text-lg font-extrabold">{t("سجي", "SAJJI")}</div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+          <div className="flex justify-start">
+            <button aria-label={t("الإعدادات", "Settings")} onClick={() => setSetOpen(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2">
+              <SettingsIcon className="size-5" />
+            </button>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <img src="/icons/sajji-mark.svg" alt="" className="size-10 shrink-0" />
+            <div className="flex flex-col items-center leading-tight">
+              <div className="text-xl font-extrabold">{t("سجي", "SAJJI")}</div>
               <div className="text-[10px] font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
             </div>
           </div>
-          <button
-            aria-label="GPS"
-            onClick={async () => {
-              setGpsErr(null);
-              try {
-                setGpsPt(await getGps());
-                setSel(null);
-              } catch (e) {
-                setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
-              }
-            }}
-            className="grid size-10 place-items-center rounded-full border border-line bg-surface-2"
-          >
-            <LocateFixed className="size-5" />
-          </button>
-          <button aria-label="refresh" disabled={!online || !pt || loading} onClick={() => load(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2 disabled:opacity-40">
-            <RefreshCw className={cn("size-5", loading && "animate-spin")} />
-          </button>
-          <SyncBadge />
+          <div className="flex justify-end">
+            <button aria-label="refresh" disabled={!online || !pt || loading} onClick={() => load(true)} className="grid size-10 place-items-center rounded-full border border-line bg-surface-2 disabled:opacity-40">
+              <RefreshCw className={cn("size-5", loading && "animate-spin")} />
+            </button>
+          </div>
         </div>
-        <div className="mt-2">
-          <div className="min-w-0">
+        <div className="mt-2 flex items-center gap-2">
+          <div className="min-w-0 flex-1">
             <div className="relative">
               <select
                 aria-label={t("موقع الصيد", "Fishing spot")}
@@ -272,6 +268,21 @@ export default function MarineHome() {
               <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
           </div>
+          <button
+            aria-label="GPS"
+            onClick={async () => {
+              setGpsErr(null);
+              try {
+                setGpsPt(await getGps());
+                setSel(null);
+              } catch (e) {
+                setGpsErr((e as Error).message === "DENIED" ? t("تم رفض إذن الموقع", "Location permission denied") : t("تعذر تحديد الموقع", "Location unavailable"));
+              }
+            }}
+            className="grid size-10 shrink-0 place-items-center rounded-full border border-line bg-surface-2"
+          >
+            <LocateFixed className="size-5" />
+          </button>
         </div>
         {gpsErr && <p className="mt-1 text-xs text-warn">{gpsErr}</p>}
       </header>
@@ -462,14 +473,14 @@ export default function MarineHome() {
                 <div className="flex items-center justify-center gap-1 text-[11px] font-medium text-ocean">
                   <Wind className="size-3" /> {t("الرياح", "Wind")}
                 </div>
-                <div className="text-lg font-extrabold text-ocean">{wx?.wind != null ? fmtWind(wx.wind, unit, lang) : "—"}</div>
+                <div className="text-lg font-extrabold text-white">{wx?.wind != null ? fmtWind(wx.wind, unit, lang) : "—"}</div>
                 <div className="text-[11px] text-ink">{wx?.wind != null ? compass(wx.dir, lang) : ""}</div>
               </div>
               <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
                 <div className="flex items-center justify-center gap-1 text-[11px] font-medium text-ocean">
                   <Waves className="size-3" /> {t("الموج", "Waves")}
                 </div>
-                <div className="text-lg font-extrabold text-ocean">
+                <div className="text-lg font-extrabold text-white">
                   {m?.wave_h != null ? (
                     <bdi>
                       {m.wave_h} {t("م", "m")}
@@ -482,14 +493,15 @@ export default function MarineHome() {
               </div>
               <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
                 <div className="text-[11px] font-medium text-ocean">{t("حرارة الماء", "Water")}</div>
-                <div className="text-lg font-extrabold text-ocean">{m?.sst != null ? `${m.sst}°` : "—"}</div>
+                <div className="text-lg font-extrabold text-white">{m?.sst != null ? `${m.sst}°` : "—"}</div>
                 <div className="text-[11px] text-ink">{wx?.temp != null ? <>{t("الجو", "Air")} <bdi>{wx.temp}°</bdi></> : ""}</div>
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2 text-sm">
               <span className="text-[11px] font-medium text-ocean">{t("دورة اليوم", "Today's cycle")}</span>
-              <span className={cn("font-bold", cyc.cycle === "hamal" ? "text-ocean" : cyc.cycle === "fasad" ? "text-warn" : "text-ink-2")}>
-                {t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}
+              <span className="font-bold">
+                <span className={cyc.cycle === "hamal" ? "text-ocean" : cyc.cycle === "fasad" ? "text-warn" : "text-ink-2"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم`, `${CYCLE_LABEL[cyc.cycle].en} — day`)}</span>{" "}
+                <span className="text-white">{cyc.day}</span>
               </span>
             </div>
             {warn.length > 0 && (
@@ -647,6 +659,75 @@ export default function MarineHome() {
         </>
       )}
 
+      <Sheet open={setOpen} onClose={() => setSetOpen(false)} title={t("الإعدادات", "Settings")}>
+        <div className="space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">{t("حالة المزامنة", "Sync status")}</span>
+            <SyncBadge />
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-medium">{t("وحدة الرياح", "Wind unit")}</div>
+            <Choice<WindUnit>
+              value={unit}
+              allowClear={false}
+              onChange={(v) => {
+                if (!v) return;
+                setUnit(v);
+                saveWindUnit(v);
+              }}
+              options={[
+                { value: "kmh", label: t("كم/س", "km/h") },
+                { value: "kn", label: t("عقدة", "knots") },
+                { value: "ms", label: t("م/ث", "m/s") },
+              ]}
+            />
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-medium">{t("وحدة العمق", "Depth unit")}</div>
+            <Choice<DepthUnit>
+              value={depthUnit}
+              allowClear={false}
+              onChange={(v) => v && saveDepthUnit(v)}
+              options={[
+                { value: "ft", label: t("قدم", "feet") },
+                { value: "m", label: t("متر", "metres") },
+              ]}
+            />
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-medium">{t("اللغة", "Language")}</div>
+            <Choice<"ar" | "en">
+              value={lang}
+              allowClear={false}
+              onChange={(v) => v && setLang(v)}
+              options={[
+                { value: "ar", label: "العربية" },
+                { value: "en", label: "English" },
+              ]}
+            />
+          </div>
+          <div>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={async () => {
+                setUpd(t("جارٍ التحقق…", "Checking…"));
+                const r = await checkForUpdate();
+                if (r === "available") {
+                  setSetOpen(false);
+                  window.dispatchEvent(new Event("ft:update-available"));
+                } else setUpd(r === "latest" ? t("أنت على آخر إصدار ✓", "You're on the latest version ✓") : t("تعذر التحقق — تحقق من الاتصال", "Couldn't check — are you online?"));
+              }}
+            >
+              <RefreshCw className="size-4" /> {t("التحقق من التحديثات", "Check for updates")}
+            </Button>
+            {upd && <p className="mt-2 text-center text-xs text-ink-2">{upd}</p>}
+          </div>
+          <Link href="/settings" className="block rounded-xl border border-line bg-surface-2 px-4 py-3 text-center text-sm font-medium">
+            {t("كل الإعدادات", "All settings")}
+          </Link>
+        </div>
+      </Sheet>
       <Sheet open={addOpen} onClose={() => setAddOpen(false)} title={t("موقع جديد", "New spot")}>
         <LocationForm
           onDone={(id) => {

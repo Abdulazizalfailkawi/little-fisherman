@@ -19,6 +19,7 @@ import { activeTrip, targetsOf } from "@/lib/trips";
 import { normalizeName } from "@/lib/normalize";
 import { getGps } from "@/lib/gps";
 import { snapshotCatch } from "@/lib/marine/snapshots";
+import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
 
 export default function Page() {
   return (
@@ -35,6 +36,8 @@ function CatchEdit() {
   const store = useStore();
   const { ds, idx, save, remove, addPhoto } = store;
   const { t, lang, name } = useI18n();
+  const du = useDepthUnit();
+  const dw = depthWord(du, lang);
   const router = useRouter();
   const existing = id ? ds.catches.find((c) => c.id === id) : undefined;
   const toast = useToast();
@@ -328,8 +331,8 @@ function CatchEdit() {
           <summary className="cursor-pointer list-none font-semibold">⚙️ {t("تفاصيل إضافية (اختياري)", "More details (optional)")}</summary>
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Field label={t("العمق الفعلي (م)", "Actual depth (m)")} error={errText("depth_m")}>
-                <NumberInput value={c.depth_m} onChange={(v) => set("depth_m", v)} />
+              <Field label={t(`العمق الفعلي (${dw})`, `Actual depth (${dw})`)} error={errText("depth_m")}>
+                <NumberInput value={toUnit(c.depth_m, du)} onChange={(v) => set("depth_m", fromUnit(v, du))} />
               </Field>
               <Field label="PE" error={errText("pe_rating")}>
                 <NumberInput value={c.pe_rating} onChange={(v) => set("pe_rating", v)} />

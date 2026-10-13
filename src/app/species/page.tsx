@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n";
 import { MIN_SAMPLE, speciesStats } from "@/lib/stats";
 import { depthBins } from "@/lib/analyticsExtra";
 import { fmtDate } from "@/lib/time";
+import { depthWord, useDepthUnit } from "@/lib/depth";
 
 export default function Page() {
   return (
@@ -26,6 +27,7 @@ function SpeciesPage() {
   const id = useSearchParams().get("id");
   const { ds, idx, save, remove } = useStore();
   const { t, lang, name, num } = useI18n();
+  const du = useDepthUnit();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -155,10 +157,10 @@ function SpeciesPage() {
               </div>
             </div>
             <div>
-              <div className="mb-1 text-xs text-muted">{t("العمق الفعلي (م)", "Actual depth (m)")}</div>
+              <div className="mb-1 text-xs text-muted">{t(`العمق الفعلي (${depthWord(du, lang)})`, `Actual depth (${depthWord(du, lang)})`)}</div>
               <div className="flex flex-wrap gap-1.5">
                 {(() => {
-                  const d = depthBins(st.catches, 5);
+                  const d = depthBins(st.catches, du === "ft" ? 20 : 5, du);
                   return (
                     <>
                       {d.bins.map((b) => (
