@@ -10,7 +10,7 @@ import { cn } from "./ui";
 /** Routes that belong to each of the three primary sections. */
 export const SECTION_ROUTES = {
   sea: ["/marine"],
-  trips: ["/trips", "/trip", "/catch", "/catches", "/calendar", "/spots", "/spot", "/equipment", "/gallery", "/search", "/quick"],
+  trips: ["/trips", "/trip", "/catch", "/catches", "/calendar", "/spots", "/spot", "/equipment", "/gallery", "/search", "/quick", "/marks"],
   account: ["/account"],
   stats: ["/stats", "/analytics", "/collection", "/species", "/records", "/achievements", "/reports", "/report", "/settings", "/more"],
 };

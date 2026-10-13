@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fish, Flag, Play, Plus } from "lucide-react";
+import { Fish, Flag, MapPinned, Play, Plus } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useNow } from "@/lib/hooks/useNow";
 import { activeTrip, elapsed, finishTrip, startTrip, targetsOf } from "@/lib/trips";
@@ -69,6 +69,13 @@ export default function TripsPage() {
           ) : undefined
         }
       />
+      <Link href="/marks" className="mb-3 flex items-center gap-3 rounded-2xl border border-ocean/50 bg-ocean/10 px-4 py-3">
+        <MapPinned className="size-6 shrink-0 text-ocean" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold">{t("إحداثياتي", "My coordinates")}</span>
+          <span className="block text-xs text-ink-2">{ds.marks.length ? t(`${ds.marks.length} إحداثية مخزّنة — اضغط لعرضها كلها`, `${ds.marks.length} saved — tap to see them all`) : t("لسه ما خزّنت شيء — استخدم زر «علّم هنا» في صفحة البحر", "Nothing saved yet — use “Mark here” on the sea page")}</span>
+        </span>
+      </Link>
       {active ? (
         <Card className="mb-3 space-y-3 border-teal/40">
           <div className="flex items-center justify-between gap-2">

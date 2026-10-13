@@ -296,6 +296,16 @@ export interface EnvironmentObservation extends Timestamps {
   method?: string | null;
 }
 
+/** A coordinate saved with "mark here" (separate from the spots used by trips). */
+export interface Mark extends Timestamps {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  depth_m: number | null;
+  notes: string | null;
+}
+
 export interface Profile {
   id: string;
   display_name: string | null;
@@ -317,6 +327,7 @@ export interface Tables {
   trip_media: TripMedia;
   catch_media: CatchMedia;
   trip_targets: TripTarget;
+  marks: Mark;
   goals: Goal;
   user_achievements: UserAchievement;
   environment_observations: EnvironmentObservation;
@@ -340,6 +351,7 @@ export const TABLE_ORDER: TableName[] = [
   "trip_media",
   "catch_media",
   "trip_targets",
+  "marks",
   "goals",
   "user_achievements",
   "environment_observations",
@@ -359,6 +371,7 @@ export const TABLE_KEYS: Record<TableName, string[]> = {
   trip_media: ["trip_id", "media_id"],
   catch_media: ["catch_id", "media_id"],
   trip_targets: ["trip_id", "species_id"],
+  marks: ["id"],
   goals: ["id"],
   user_achievements: ["achievement_code"],
   environment_observations: ["id"],
@@ -387,6 +400,7 @@ export interface Dataset {
   trip_media: TripMedia[];
   catch_media: CatchMedia[];
   trip_targets: TripTarget[];
+  marks: Mark[];
   goals: Goal[];
   user_achievements: UserAchievement[];
   environment_observations: EnvironmentObservation[];
@@ -406,6 +420,7 @@ export function emptyDataset(): Dataset {
     trip_media: [],
     catch_media: [],
     trip_targets: [],
+    marks: [],
     goals: [],
     user_achievements: [],
     environment_observations: [],

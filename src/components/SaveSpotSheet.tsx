@@ -1,8 +1,8 @@
 "use client";
 
 // «علّم هنا» — store the coordinate you are standing on right now (e.g. where you
-// just caught a fish) as a saved spot. It becomes a normal spot: it shows up in
-// the spot lists, on the map, and can be picked for trips and catches.
+// just caught a fish). It goes to the separate «إحداثياتي» list; it is NOT added
+// to the spots used for trips and catches.
 
 import { useEffect, useState } from "react";
 import { Check, Copy, ExternalLink, LocateFixed, MapPinPlus } from "lucide-react";
@@ -11,13 +11,12 @@ import { depthWord, fromUnit, toUnit, useDepthUnit } from "@/lib/depth";
 import { getGps } from "@/lib/gps";
 import { uuid } from "@/lib/ids";
 import { useI18n } from "@/lib/i18n";
-import { normalizeName } from "@/lib/normalize";
 import { fmtDate, fmtTime } from "@/lib/time";
-import type { Location } from "@/lib/types";
+import type { Mark } from "@/lib/types";
 import { Button, Field, Input, NumberInput, Notice, Sheet, Spinner, Textarea } from "./ui";
 
 export function SaveSpotSheet({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved?: (id: string) => void }) {
-  const { ds, save } = useStore();
+  const { save } = useStore();
   const { t, lang } = useI18n();
   const du = useDepthUnit();
   const [pt, setPt] = useState<{ lat: number; lng: number } | null>(null);
@@ -26,7 +25,7 @@ export function SaveSpotSheet({ open, onClose, onSaved }: { open: boolean; onClo
   const [name, setName] = useState("");
   const [depth, setDepth] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
-  const [saved, setSaved] = useState<Location | null>(null);
+  const [saved, setSaved] = useState<Mark | null>(null);
   const [copied, setCopied] = useState(false);
 
   const locate = async () => {
@@ -60,29 +59,20 @@ export function SaveSpotSheet({ open, onClose, onSaved }: { open: boolean; onClo
 
   const doSave = async () => {
     if (!pt) return;
-    let finalName = name.trim() || `${t("علامة", "Mark")} ${coords}`;
-    const taken = new Set(ds.locations.map((l) => normalizeName(l.name)));
-    for (let i = 2; taken.has(normalizeName(finalName)); i++) finalName = `${name.trim() || t("علامة", "Mark")} (${i})`;
     const ts = new Date().toISOString();
-    const loc: Location = {
+    const mark: Mark = {
       id: uuid(),
-      name: finalName,
-      name_en: null,
-      area: null,
+      name: name.trim() || `${t("علامة", "Mark")} ${coords}`,
       lat: pt.lat,
       lng: pt.lng,
-      kind: "other",
+      depth_m: fromUnit(depth, du),
       notes: notes.trim() || null,
-      typical_depth_m: fromUnit(depth, du),
-      tide_station: "model",
-      is_favorite: false,
-      is_demo: false,
       created_at: ts,
       updated_at: ts,
     };
-    await save("locations", loc);
-    setSaved(loc);
-    onSaved?.(loc.id);
+    await save("marks", mark);
+    setSaved(mark);
+    onSaved?.(mark.id);
   };
 
   return (
@@ -96,7 +86,7 @@ export function SaveSpotSheet({ open, onClose, onSaved }: { open: boolean; onClo
             <div className="text-lg font-bold">{t("انحفظت الإحداثية", "Coordinate saved")}</div>
             <div className="text-sm text-ink-2">{saved.name}</div>
             <div className="ltr rounded-xl bg-surface-2 px-3 py-2 font-mono text-sm">{coords}</div>
-            <p className="text-xs text-muted">{t("تلقاها في «رحلاتي وصيدي ← المواقع»، وتقدر تختارها كموقع للرحلة أو الصيدة.", "Find it under Trips & catches → Spots; you can pick it as the spot of a trip or a catch.")}</p>
+            <p className="text-xs text-muted">{t("تلقاها في «رحلاتي وصيدي ← إحداثياتي».", "Find it under Trips & catches → My coordinates.")}</p>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="secondary"
