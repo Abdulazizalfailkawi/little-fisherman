@@ -220,10 +220,10 @@ export default function MarineHome() {
             </button>
           </div>
           <div className="flex items-center justify-center gap-2">
-            <img src="/icons/sajji-mark.svg" alt="" className="size-10 shrink-0" />
+            <img src="/icons/sajji-mark.svg" alt="" className="size-16 shrink-0" />
             <div className="flex flex-col items-center leading-tight">
-              <div className="text-xl font-extrabold">{t("سجي", "SAJJI")}</div>
-              <div className="text-[10px] font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
+              <div className="text-3xl font-extrabold">{t("سجي", "SAJJI")}</div>
+              <div className="mt-1 text-xs font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
             </div>
           </div>
           <div className="flex justify-end">
