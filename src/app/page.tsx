@@ -41,6 +41,23 @@ function remain(ms: number, lang: "ar" | "en") {
   return lang === "ar" ? `بعد ${Math.floor(m / 60)} س ${m % 60} د` : `in ${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+function Tile({ icon, title, tone, aside, hint, open, onToggle, className, children }: { icon: React.ReactNode; title: string; tone: "rise" | "fall" | "warn"; aside?: React.ReactNode; hint: string; open: boolean; onToggle: () => void; className?: string; children: React.ReactNode }) {
+  const border = tone === "rise" ? "border-rise/40" : tone === "fall" ? "border-fall/40" : "border-warn/40";
+  return (
+    <Card className={cn("p-3.5", border, className)}>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="mb-3 flex w-full items-center justify-between gap-2 text-start">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-2">
+          {icon} {title}
+          <ChevronDown className={cn("size-4 text-muted transition-transform", open && "rotate-180")} />
+          {!open && <span className="text-[10px] font-normal text-muted">{hint}</span>}
+        </span>
+        {aside}
+      </button>
+      {children}
+    </Card>
+  );
+}
+
 export default function MarineHome() {
   const store = useStore();
   const { ds, idx, online, hijriOffset } = store;
@@ -54,7 +71,8 @@ export default function MarineHome() {
   const [sel, setSel] = useState<number | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualRev, setManualRev] = useState(0);
-  const [showHours, setShowHours] = useState(false);
+  const [open1, setOpen1] = useState(false);
+  const [open2, setOpen2] = useState(false);
   const [gpsErr, setGpsErr] = useState<string | null>(null);
 
   const spots = useMemo(
@@ -117,6 +135,16 @@ export default function MarineHome() {
   const active = ds.trips.find((x) => isActiveStatus(x.status));
   const chartFrom = now - 2 * H;
   const chartTo = now + 24 * H;
+  const clock = new Intl.DateTimeFormat(lang === "ar" ? "ar-KW-u-nu-latn" : "en-GB", { timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(now));
+  const seaLevel: "calm" | "moderate" | "rough" | null =
+    wx?.wind == null && m?.wave_h == null
+      ? null
+      : (wx?.wind ?? 0) >= 37 || (wx?.gust ?? 0) >= 50 || (m?.wave_h ?? 0) >= 1.5
+        ? "rough"
+        : (wx?.wind ?? 0) >= 20 || (m?.wave_h ?? 0) >= 0.6
+          ? "moderate"
+          : "calm";
+  const seaLabel = seaLevel === "rough" ? t("رياح شديدة", "Rough") : seaLevel === "moderate" ? t("متوسط", "Moderate") : seaLevel === "calm" ? t("هادئ", "Calm") : "—";
   const selState = sel != null ? tideState(usingManual ? [] : model.pts, turns, sel) : null;
 
   const dirLabel = (d: string | null) =>
@@ -156,11 +184,6 @@ export default function MarineHome() {
               </select>
               <ChevronDown className="pointer-events-none absolute end-0 top-1.5 size-5 text-muted" />
             </div>
-            <div className="truncate text-xs text-ink-2">
-              <span className="ltr font-semibold text-ink">{new Intl.DateTimeFormat(lang === "ar" ? "ar-KW-u-nu-latn" : "en-GB", { timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(now))}</span>
-              {" · "}
-              {fmtDate(new Date(now), lang, { weekday: "short" })} · {fmtHijri(hijri, lang)}
-            </div>
           </div>
           <button
             aria-label="GPS"
@@ -181,22 +204,6 @@ export default function MarineHome() {
             <RefreshCw className={cn("size-5", loading && "animate-spin")} />
           </button>
           <SyncBadge />
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-          {cyc.cycle !== "between" && <Badge tone={cyc.cycle === "hamal" ? "ocean" : "warn"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}</Badge>}
-          <Badge>
-            {MOON_EMOJI[moon.phase]} {MOON_LABEL[moon.phase][lang]} {Math.round(moon.illumination * 100)}%
-          </Badge>
-          {sun?.sunrise && (
-            <Badge>
-              <Sunrise className="size-3" /> {fmtTime(sun.sunrise, lang)}
-            </Badge>
-          )}
-          {sun?.sunset && (
-            <Badge>
-              <Sunset className="size-3" /> {fmtTime(sun.sunset, lang)}
-            </Badge>
-          )}
         </div>
         {gpsErr && <p className="mt-1 text-xs text-warn">{gpsErr}</p>}
       </header>
@@ -253,14 +260,21 @@ export default function MarineHome() {
             </Notice>
           )}
 
-          {/* Tide phase + waqfa countdown */}
-          <div className="grid grid-cols-2 gap-2">
-            <Card className="p-3.5">
-              <div className="text-xs text-muted">{t("حالة الماء الآن", "Tide now")}</div>
-              {st.direction ? (
-                <>
-                  <div className={cn("mt-1 flex items-center gap-1.5 text-3xl font-extrabold", dirColor(st.direction))}>
-                    {st.direction === "rising" ? <ArrowUp className="size-8" strokeWidth={3} /> : st.direction === "falling" ? <ArrowDown className="size-8" strokeWidth={3} /> : <Timer className="size-7" />}
+          {/* Tile 1 — tide & clock */}
+          <Tile
+            icon={<Waves className="size-4" />}
+            title={t("المد والجزر", "Tide")}
+            tone={st.direction === "rising" ? "rise" : st.direction === "falling" ? "fall" : "warn"}
+            open={open1}
+            onToggle={() => setOpen1((v) => !v)}
+            hint={t("اضغط للتفاصيل", "Tap for details")}
+            aside={<span className="ltr font-mono text-lg font-bold tabular-nums">{clock}</span>}
+          >
+            {st.direction ? (
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <div className={cn("flex items-center gap-1.5 text-4xl font-extrabold", dirColor(st.direction))}>
+                    {st.direction === "rising" ? <ArrowUp className="size-9" strokeWidth={3} /> : st.direction === "falling" ? <ArrowDown className="size-9" strokeWidth={3} /> : <Timer className="size-8" />}
                     {dirLabel(st.direction)}
                   </div>
                   <div className="mt-1 text-xs text-ink-2">
@@ -279,79 +293,220 @@ export default function MarineHome() {
                       </span>
                     )}
                   </div>
-                  {st.next && (
-                    <div className="mt-1 text-xs text-muted">
-                      {t("التحول التالي", "Next turn")}: {fmtTime(st.next.t, lang)}
-                    </div>
+                </div>
+                <div className="text-end">
+                  <div className="text-[11px] text-warn">{st.direction === "waqfa" ? t("تنتهي الوقفة بعد", "Waqfa ends in") : t("الوقفة بعد", "Waqfa in")}</div>
+                  {st.turn ? (
+                    <div className="ltr font-mono text-2xl font-extrabold tabular-nums">{st.direction === "waqfa" && st.turn.waqfaEnd ? hms(st.turn.waqfaEnd - now) : hms((st.turn.waqfaStart ?? st.turn.t) - now)}</div>
+                  ) : (
+                    <div className="text-xs text-muted">{t("بيانات الوقفة غير متوفرة حالياً", "Waqfa data currently unavailable")}</div>
                   )}
-                </>
-              ) : (
-                <div className="mt-2 text-sm text-muted">{t("بيانات المد غير متوفرة", "Tide data unavailable")}</div>
-              )}
-            </Card>
-
-            <Card className="border-warn/30 p-3.5">
-              <div className="text-xs text-warn">{st.direction === "waqfa" ? t("في الوقفة الآن", "In the waqfa now") : t("الوقفة القادمة", "Next waqfa")}</div>
-              {st.turn ? (
-                <>
-                  <div className="ltr mt-1 text-start font-mono text-3xl font-extrabold tabular-nums">
-                    {st.direction === "waqfa" && st.turn.waqfaEnd ? hms(st.turn.waqfaEnd - now) : hms((st.turn.waqfaStart ?? st.turn.t) - now)}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted">{t("بيانات المد غير متوفرة", "Tide data unavailable")}</div>
+            )}
+            {st.nextHigh || st.nextLow ? (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {[
+                  { e: st.nextHigh, l: t("أعلى مد", "High tide"), cls: "text-rise", Icon: ArrowUp },
+                  { e: st.nextLow, l: t("أدنى جزر", "Low tide"), cls: "text-fall", Icon: ArrowDown },
+                ].map(({ e, l, cls, Icon }) => (
+                  <div key={l} className="rounded-xl bg-surface-2 px-3 py-2">
+                    <div className={cn("flex items-center gap-1 text-[11px]", cls)}>
+                      <Icon className="size-3" /> {l}
+                    </div>
+                    {e ? (
+                      <>
+                        <div className="text-lg font-bold">{fmtTime(e.t, lang)}</div>
+                        <div className="text-[11px] text-ink-2">{remain(e.t - now, lang)}</div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted">—</div>
+                    )}
                   </div>
+                ))}
+              </div>
+            ) : null}
+            {open1 && (
+              <div className="mt-3 space-y-2 border-t border-line/40 pt-3 text-sm">
+                {st.turn && (
                   <div className="text-xs text-ink-2">
                     {st.turn.type === "high" ? t("سجي ← ثبر", "Saji → Thabr") : t("ثبر ← سجي", "Thabr → Saji")} · {t("التحول", "turn")} {fmtTime(st.turn.t, lang)}
+                    {st.turn.waqfaStart != null && st.turn.waqfaEnd != null ? (
+                      <>
+                        {" · "}
+                        {t("الوقفة تقريباً", "Waqfa approx.")} {fmtTime(st.turn.waqfaStart, lang)}–{fmtTime(st.turn.waqfaEnd, lang)}
+                        {st.turn.uncertaintyMin ? ` · ±${st.turn.uncertaintyMin} ${t("د", "min")}` : ""}
+                      </>
+                    ) : (
+                      <> · {t("وقت الحدث فقط — مدة الوقفة غير معروفة", "Event time only — waqfa duration unknown")}</>
+                    )}
+                    <div className="text-[10px] text-warn/90">{t("وقت متوقع وليس مؤكداً", "Predicted, not guaranteed")}</div>
                   </div>
-                  {st.turn.waqfaStart != null && st.turn.waqfaEnd != null ? (
-                    <div className="text-[11px] text-muted">
-                      {t("الوقفة تقريباً", "Waqfa approx.")} {fmtTime(st.turn.waqfaStart, lang)}–{fmtTime(st.turn.waqfaEnd, lang)}
-                      {st.turn.uncertaintyMin ? ` · ±${st.turn.uncertaintyMin} ${t("د", "min")}` : ""}
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-muted">{t("وقت الحدث فقط — مدة الوقفة غير معروفة", "Event time only — waqfa duration unknown")}</div>
-                  )}
-                  <div className="mt-1 text-[10px] text-warn/90">{t("وقت متوقع وليس مؤكداً", "Predicted, not guaranteed")}</div>
-                </>
-              ) : (
-                <div className="mt-2 text-sm text-muted">{t("بيانات الوقفة غير متوفرة حالياً", "Waqfa data currently unavailable")}</div>
-              )}
-            </Card>
-          </div>
-
-          {/* High / low */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {[
-              { e: st.nextHigh, l: t("أعلى مد", "High tide"), cls: "text-rise", Icon: ArrowUp },
-              { e: st.nextLow, l: t("أدنى جزر", "Low tide"), cls: "text-fall", Icon: ArrowDown },
-            ].map(({ e, l, cls, Icon }) => (
-              <Card key={l} className="p-3.5">
-                <div className={cn("flex items-center gap-1 text-xs", cls)}>
-                  <Icon className="size-3.5" /> {l}
-                </div>
-                {e ? (
-                  <>
-                    <div className="mt-1 text-2xl font-bold">{fmtTime(e.t, lang)}</div>
-                    <div className="text-xs text-ink-2">
-                      {e.h != null ? (
-                        <>
-                          <bdi>
-                            {e.h} {t("م", "m")}
-                          </bdi>
-                          {" · "}
-                        </>
-                      ) : null}
-                      {remain(e.t - now, lang)}
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-2 text-sm text-muted">—</div>
                 )}
-              </Card>
-            ))}
-          </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <Badge>
+                    {fmtDate(new Date(now), lang, { weekday: "long" })} · {fmtDate(new Date(now), lang)}
+                  </Badge>
+                  <Badge>{fmtHijri(hijri, lang)}</Badge>
+                  {cyc.cycle !== "between" && <Badge tone={cyc.cycle === "hamal" ? "ocean" : "warn"}>{t(`${CYCLE_LABEL[cyc.cycle].ar} — اليوم ${cyc.day}`, `${CYCLE_LABEL[cyc.cycle].en} — day ${cyc.day}`)}</Badge>}
+                  <Badge>
+                    {MOON_EMOJI[moon.phase]} {MOON_LABEL[moon.phase][lang]} {Math.round(moon.illumination * 100)}%
+                  </Badge>
+                  {sun?.sunrise && (
+                    <Badge>
+                      <Sunrise className="size-3" /> {fmtTime(sun.sunrise, lang)}
+                    </Badge>
+                  )}
+                  {sun?.sunset && (
+                    <Badge>
+                      <Sunset className="size-3" /> {fmtTime(sun.sunset, lang)}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+                  <KindBadge kind={usingManual ? "manual" : (c?.tide.kind ?? "unavailable")} />
+                  <span className="truncate">{tideSource}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {spotId && (
+                    <Button size="sm" variant="secondary" onClick={() => setManualOpen(true)}>
+                      <PencilLine className="size-4" /> {usingManual ? t("تعديل الأوقات اليدوية", "Edit manual times") : t("إدخال أوقات رسمية يدوياً", "Enter official times")}
+                    </Button>
+                  )}
+                  <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 px-2 text-xs text-teal underline">
+                    {t("الجدول الرسمي", "Official table")} <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+          </Tile>
 
-          {/* Interactive chart */}
+          {/* Tile 2 — sea state */}
+          <Tile
+            className="mt-2"
+            icon={<Wind className="size-4" />}
+            title={t("حالة البحر", "Sea state")}
+            tone={seaLevel === "rough" ? "fall" : seaLevel === "moderate" ? "warn" : "rise"}
+            open={open2}
+            onToggle={() => setOpen2((v) => !v)}
+            hint={t("اضغط للتفاصيل", "Tap for details")}
+            aside={<span className={cn("rounded-full px-2.5 py-0.5 text-sm font-bold", seaLevel === "rough" ? "bg-fall/15 text-fall" : seaLevel === "moderate" ? "bg-warn/15 text-warn" : seaLevel === "calm" ? "bg-rise/15 text-rise" : "bg-surface-2 text-muted")}>{seaLabel}</span>}
+          >
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-surface-2 px-2 py-2">
+                <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
+                  <Wind className="size-3" /> {t("الرياح", "Wind")}
+                </div>
+                <div className="text-base font-bold">{wx?.wind != null ? fmtWind(wx.wind, unit, lang) : "—"}</div>
+                <div className="text-[11px] text-ink-2">{wx?.wind != null ? compass(wx.dir, lang) : ""}</div>
+              </div>
+              <div className="rounded-xl bg-surface-2 px-2 py-2">
+                <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
+                  <Waves className="size-3" /> {t("الموج", "Waves")}
+                </div>
+                <div className="text-base font-bold">
+                  {m?.wave_h != null ? (
+                    <bdi>
+                      {m.wave_h} {t("م", "m")}
+                    </bdi>
+                  ) : (
+                    "—"
+                  )}
+                </div>
+                <div className="text-[11px] text-ink-2">{m?.wave_dir != null ? compass(m.wave_dir, lang) : ""}</div>
+              </div>
+              <div className="rounded-xl bg-surface-2 px-2 py-2">
+                <div className="text-[11px] text-muted">{t("حرارة الماء", "Water")}</div>
+                <div className="text-base font-bold">{m?.sst != null ? `${m.sst}°` : "—"}</div>
+                <div className="text-[11px] text-ink-2">{wx?.temp != null ? `${t("الجو", "Air")} ${wx.temp}°` : ""}</div>
+              </div>
+            </div>
+            {warn.length > 0 && (
+              <div className="mt-2 flex items-start gap-1.5 rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>{warn.map((x) => t(x.ar, x.en)).join(" · ")}</span>
+              </div>
+            )}
+            {open2 && (
+              <div className="mt-3 space-y-2 border-t border-line/40 pt-3 text-xs text-ink-2">
+                {wx?.wind != null && (
+                  <div>
+                    {t("هبات", "Gusts")} {fmtWind(wx.gust, unit, lang)} <KindBadge kind={cur ? "forecast" : (w?.k ?? "unavailable")} />
+                  </div>
+                )}
+                {m?.wave_h != null && (
+                  <div>
+                    {m.wave_p != null ? `${t("فترة الموج", "Period")} ${m.wave_p} ${t("ث", "s")} · ` : ""}
+                    {m.swell_h != null && (
+                      <>
+                        {t("سويل", "Swell")} {m.swell_h} {t("م", "m")} · {t("موج رياح", "wind waves")} {m.wind_wave_h ?? "—"} {t("م", "m")}
+                      </>
+                    )}{" "}
+                    <KindBadge kind={m?.k ?? "unavailable"} />
+                  </div>
+                )}
+                {wx?.temp != null && (
+                  <div>
+                    {t("الإحساس", "Feels")} {wx.feels ?? "—"}° · {t("رطوبة", "RH")} {wx.rh ?? "—"}%{w?.pprob != null ? ` · ${t("احتمال مطر", "Rain chance")} ${w.pprob}%` : ""}
+                  </div>
+                )}
+                {m?.cur_v != null && (
+                  <div>
+                    {t("التيار (نموذج)", "Current (model)")} {(m.cur_v / 1.852).toFixed(1)} {t("عقدة", "kn")}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted">
+                  {t("التصنيف: هادئ، متوسط، أو شديد حسب الرياح (٢٠ و٣٧ كم/س) والموج (٠٫٦ و١٫٥ م). هذا تقدير مبسّط وليس نشرة رسمية.", "Calm / moderate / rough from wind (20 and 37 km/h) and waves (0.6 and 1.5 m). A simple estimate, not an official bulletin.")}
+                </p>
+                <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-teal underline">
+                  {t("النشرة البحرية الرسمية", "Official marine bulletin")} <ExternalLink className="size-3" />
+                </a>
+                {c && (
+                  <div className="overflow-x-auto">
+                    <div className="mb-1 mt-1 font-semibold text-ink">{t("الساعات القادمة", "Hour by hour")}</div>
+                    <table className="w-full text-xs">
+                      <thead className="text-muted">
+                        <tr className="border-b border-line/50">
+                          <th className="p-2 text-start font-medium">{t("الوقت", "Time")}</th>
+                          <th className="p-2 font-medium">{t("المد", "Tide")}</th>
+                          <th className="p-2 font-medium">{t("رياح", "Wind")}</th>
+                          <th className="p-2 font-medium">{t("موج", "Wave")}</th>
+                          <th className="p-2 font-medium">°C</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {c.weather.hours
+                          .filter((h) => Date.parse(h.t) >= now - H / 2 && Date.parse(h.t) <= now + 24 * H)
+                          .map((h) => {
+                            const tt = Date.parse(h.t);
+                            const mh = hourAt(c.marine.hours, tt);
+                            const s2 = tideState(model.pts, model.turns, tt);
+                            return (
+                              <tr key={h.t} className="border-b border-line/30">
+                                <td className="p-2">{fmtTime(tt, lang)}</td>
+                                <td className={cn("p-2 text-center", dirColor(s2.direction))}>{s2.direction ? dirLabel(s2.direction) : "—"}</td>
+                                <td className="p-2 text-center">
+                                  {h.wind != null ? fmtWind(h.wind, unit, lang).split(" ")[0] : "—"} <span className="text-muted">{compass(h.dir, lang)}</span>
+                                </td>
+                                <td className="p-2 text-center">{mh?.wave_h ?? "—"}</td>
+                                <td className="p-2 text-center">{h.temp ?? "—"}</td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </Tile>
+
+          {/* Tile 3 — tide graph */}
           <Card className="mt-2 p-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{t("منحنى المد — ٢٤ ساعة", "Tide — 24 hours")}</span>
+              <span className="text-sm font-semibold">{t("جراف المد — صعود وهبوط", "Tide graph — rise & fall")}</span>
               {sel != null && (
                 <button className="text-xs text-teal" onClick={() => setSel(null)}>
                   {t("عودة للآن", "Back to now")}
@@ -377,16 +532,16 @@ export default function MarineHome() {
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-muted">{t("اسحب على المنحنى لمعرفة المد في أي وقت", "Drag across the curve to inspect any time")}</span>
+                    <span className="text-xs text-muted">{t("اسحب على المنحنى لمعرفة الوقت والمد", "Drag across the curve to read time and tide")}</span>
                   )}
                 </div>
                 <TideChart pts={model.pts} turns={model.turns} from={chartFrom} to={chartTo} now={now} selected={sel} onSelect={setSel} />
                 <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-muted">
                   <span className="flex items-center gap-1">
-                    <span className="h-1 w-4 rounded-full bg-rise" /> {t("سجي", "Saji (rising)")}
+                    <span className="h-1 w-4 rounded-full bg-rise" /> {t("سجي (صعود)", "Saji (rising)")}
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="h-1 w-4 rounded-full bg-fall" /> {t("ثبر", "Thabr (falling)")}
+                    <span className="h-1 w-4 rounded-full bg-fall" /> {t("ثبر (هبوط)", "Thabr (falling)")}
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="h-3 w-4 rounded-sm bg-warn/20" /> {t("وقفة تقديرية", "Estimated waqfa")}
@@ -401,164 +556,15 @@ export default function MarineHome() {
             ) : (
               <p className="text-sm text-muted">{t("بيانات مستوى البحر غير متوفرة لهذا الموقع.", "Sea-level data unavailable for this spot.")}</p>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
-              <KindBadge kind={usingManual ? "manual" : (c?.tide.kind ?? "unavailable")} />
-              <span className="truncate">{tideSource}</span>
-              {c && !usingManual && <span>· {t("جُلب", "fetched")} {fmtTime(c.fetched_at, lang)}</span>}
-            </div>
             {!usingManual && c?.tide.status !== "unavailable" && (
-              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              <p className="mt-2 text-[11px] leading-relaxed text-muted">
                 {t(
-                  "تنبؤ من نموذج مستوى البحر (Open-Meteo، شبكة ~٥–٩ كم، مرجع متوسط سطح البحر) — ليس جدولاً رسمياً ولا للملاحة. الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول؛ الماء لا يتوقف فعلياً وقد تختلف التيارات محلياً.",
-                  "Prediction from a sea-level model (Open-Meteo, ~5–9 km grid, MSL datum) — not an official table, not for navigation. Waqfa = period where the level changes < 5 cm/h around the turn; water doesn't truly stop and local currents may differ.",
+                  "تنبؤ من نموذج مستوى البحر (Open-Meteo، شبكة ~٥–٩ كم) — ليس جدولاً رسمياً ولا للملاحة. الوقفة = الفترة التي يتغير فيها المنسوب أقل من ٥ سم/ساعة حول التحول.",
+                  "Prediction from a sea-level model (Open-Meteo, ~5–9 km grid) — not an official table, not for navigation. Waqfa = period where the level changes < 5 cm/h around the turn.",
                 )}
               </p>
             )}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {spotId && (
-                <Button size="sm" variant="secondary" onClick={() => setManualOpen(true)}>
-                  <PencilLine className="size-4" /> {usingManual ? t("تعديل الأوقات اليدوية", "Edit manual times") : t("إدخال أوقات رسمية يدوياً", "Enter official times")}
-                </Button>
-              )}
-              <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 px-2 text-xs text-teal underline">
-                {t("الجدول الرسمي", "Official table")} <ExternalLink className="size-3" />
-              </a>
-            </div>
           </Card>
-
-          {warn.length > 0 && (
-            <Notice tone="warn" className="mt-2">
-              <div className="flex items-center gap-1.5 font-semibold">
-                <AlertTriangle className="size-4" /> {t("تنبيهات خلال ٢٤ ساعة", "Alerts in the next 24 h")}
-              </div>
-              <ul className="mt-1 list-inside list-disc">
-                {warn.map((x) => (
-                  <li key={x.key}>{t(x.ar, x.en)}</li>
-                ))}
-              </ul>
-              <a href={KMC_MARINE_URL} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 underline">
-                {t("النشرة البحرية الرسمية", "Official marine bulletin")} <ExternalLink className="size-3" />
-              </a>
-            </Notice>
-          )}
-
-          {/* Conditions */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <Card className="p-3.5">
-              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
-                <Wind className="size-3.5" /> {t("الرياح", "Wind")}
-              </div>
-              {wx?.wind != null ? (
-                <>
-                  <div className="text-xl font-bold">{fmtWind(wx.wind, unit, lang)}</div>
-                  <div className="text-xs text-ink-2">
-                    {compass(wx.dir, lang)} · {t("هبات", "gusts")} {fmtWind(wx.gust, unit, lang)}
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
-              )}
-              <div className="mt-1">
-                <KindBadge kind={cur ? "forecast" : (w?.k ?? "unavailable")} />
-              </div>
-            </Card>
-            <Card className="p-3.5">
-              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
-                <Waves className="size-3.5" /> {t("الموج", "Waves")}
-              </div>
-              {m?.wave_h != null ? (
-                <>
-                  <div className="text-xl font-bold">
-                    {m.wave_h} {t("م", "m")}
-                  </div>
-                  <div className="text-xs text-ink-2">
-                    {m.wave_p != null ? `${m.wave_p} ${t("ث", "s")} · ` : ""}
-                    {t("من", "from")} {compass(m.wave_dir, lang)}
-                  </div>
-                  {m.swell_h != null && (
-                    <div className="text-xs text-muted">
-                      {t("سويل", "Swell")} {m.swell_h} {t("م", "m")} · {t("موج رياح", "wind waves")} {m.wind_wave_h ?? "—"} {t("م", "m")}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
-              )}
-              <div className="mt-1">
-                <KindBadge kind={m?.k ?? "unavailable"} />
-              </div>
-            </Card>
-            <Card className="p-3.5">
-              <div className="mb-1 text-xs text-muted">{t("الطقس", "Weather")}</div>
-              {wx?.temp != null ? (
-                <>
-                  <div className="text-xl font-bold">{wx.temp}°</div>
-                  <div className="text-xs text-ink-2">
-                    {t("الإحساس", "Feels")} {wx.feels ?? "—"}° · {t("رطوبة", "RH")} {wx.rh ?? "—"}%
-                  </div>
-                  {w?.pprob != null && (
-                    <div className="text-xs text-muted">
-                      {t("احتمال مطر", "Rain chance")} {w.pprob}%
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>
-              )}
-            </Card>
-            <Card className="p-3.5">
-              <div className="mb-1 text-xs text-muted">{t("حرارة الماء", "Sea temperature")}</div>
-              {m?.sst != null ? <div className="text-xl font-bold">{m.sst}°</div> : <div className="text-sm text-muted">{t("غير متوفر", "Unavailable")}</div>}
-              {m?.cur_v != null && (
-                <div className="text-xs text-ink-2">
-                  {t("التيار (نموذج)", "Current (model)")} {(m.cur_v / 1.852).toFixed(1)} {t("عقدة", "kn")}
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {c && (
-            <Card className="mt-2 p-0">
-              <button className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold" onClick={() => setShowHours((v) => !v)}>
-                {t("الساعات القادمة", "Hour by hour")} <ChevronDown className={cn("size-4 transition-transform", showHours && "rotate-180")} />
-              </button>
-              {showHours && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="text-muted">
-                      <tr className="border-b border-line/50">
-                        <th className="p-2 text-start font-medium">{t("الوقت", "Time")}</th>
-                        <th className="p-2 font-medium">{t("المد", "Tide")}</th>
-                        <th className="p-2 font-medium">{t("رياح", "Wind")}</th>
-                        <th className="p-2 font-medium">{t("موج", "Wave")}</th>
-                        <th className="p-2 font-medium">°C</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {c.weather.hours
-                        .filter((h) => Date.parse(h.t) >= now - H / 2 && Date.parse(h.t) <= now + 24 * H)
-                        .map((h) => {
-                          const tt = Date.parse(h.t);
-                          const mh = hourAt(c.marine.hours, tt);
-                          const s2 = tideState(model.pts, model.turns, tt);
-                          return (
-                            <tr key={h.t} className="border-b border-line/30">
-                              <td className="p-2">{fmtTime(tt, lang)}</td>
-                              <td className={cn("p-2 text-center", dirColor(s2.direction))}>{s2.direction ? dirLabel(s2.direction) : "—"}</td>
-                              <td className="p-2 text-center">
-                                {h.wind != null ? fmtWind(h.wind, unit, lang).split(" ")[0] : "—"} <span className="text-muted">{compass(h.dir, lang)}</span>
-                              </td>
-                              <td className="p-2 text-center">{mh?.wave_h ?? "—"}</td>
-                              <td className="p-2 text-center">{h.temp ?? "—"}</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          )}
 
           {c && (
             <p className="mt-3 px-1 text-[11px] leading-relaxed text-muted">
