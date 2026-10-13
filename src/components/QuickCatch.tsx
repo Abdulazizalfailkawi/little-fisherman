@@ -1,60 +1,114 @@
 "use client";
 
-// Floating "+" button: one tap opens the camera, the photo becomes a catch
-// straight away (linked to the active trip when there is one, otherwise a
-// stand-alone catch). Species, weight etc. can be completed afterwards.
+// Floating "+" button → small sheet for logging a catch in seconds while at
+// sea: photo, fish name and spot. Saved catches are linked to the active trip
+// when there is one; otherwise they are stand-alone and still counted in the
+// statistics.
 
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Camera, Loader2, Plus, X } from "lucide-react";
 import { useStore } from "@/lib/db/store";
 import { newCatch } from "@/lib/factory";
+import { uuid } from "@/lib/ids";
 import { useI18n } from "@/lib/i18n";
-import { isActiveStatus } from "@/lib/types";
+import { normalizeName, speciesKeys } from "@/lib/normalize";
+import { targetsOf } from "@/lib/trips";
+import { isActiveStatus, type Species } from "@/lib/types";
+import { Photo } from "./common";
 import { useToast } from "./Toast";
+import { Button, Field, Input, Notice, Select, Sheet, cn } from "./ui";
 
 const HIDDEN = ["/catch/edit", "/trip/edit", "/login"];
 
 export function QuickCatch() {
   const { ds, idx, save, addPhoto } = useStore();
-  const { t } = useI18n();
+  const { t, lang, name } = useI18n();
   const toast = useToast();
   const path = usePathname();
-  const input = useRef<HTMLInputElement>(null);
+  const cam = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [fish, setFish] = useState("");
+  const [loc, setLoc] = useState<string | null>(null);
   if (HIDDEN.some((p) => path.startsWith(p))) return null;
+
+  const active = ds.trips.find((x) => isActiveStatus(x.status)) ?? null;
+  const spots = ds.locations.filter((l) => l.lat != null).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const quick = [
+    ...ds.species.filter((s) => normalizeName(s.name_ar) === normalizeName("بالول")).map((s) => s.id),
+    ...(active ? targetsOf(ds, active) : []),
+    ...[...ds.catches].sort((a, b) => b.caught_at.localeCompare(a.caught_at)).map((c) => c.species_id).filter((x): x is string => !!x),
+  ]
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 6);
+
+  const openSheet = () => {
+    let spot: string | null = null;
+    try {
+      spot = localStorage.getItem("ft.marineSpot");
+    } catch {}
+    setLoc(active?.location_id ?? (spot && idx.locById.has(spot) ? spot : null));
+    setFish("");
+    setPhoto(null);
+    setErr(null);
+    setOpen(true);
+  };
 
   const onFile = async (files: FileList | null) => {
     const f = files?.[0];
     if (!f) return;
     setBusy(true);
+    setErr(null);
     try {
-      const media = await addPhoto(f);
-      const active = ds.trips.find((x) => isActiveStatus(x.status)) ?? null;
-      let spot: string | null = null;
-      try {
-        spot = localStorage.getItem("ft.marineSpot");
-      } catch {}
-      const location_id = active?.location_id ?? (spot && idx.locById.has(spot) ? spot : null);
+      setPhoto((await addPhoto(f)).id);
+    } catch {
+      setErr(t("تعذرت قراءة الصورة، جرّب مرة ثانية", "Couldn't read that photo, try again"));
+    } finally {
+      setBusy(false);
+      if (cam.current) cam.current.value = "";
+    }
+  };
+
+  const doSave = async () => {
+    setSaving(true);
+    try {
+      const typed = fish.trim();
+      let speciesId: string | null = null;
+      if (typed) {
+        const key = normalizeName(typed);
+        const hit = ds.species.find((s) => speciesKeys(s).includes(key));
+        if (hit) speciesId = hit.id;
+        else {
+          const ts = new Date().toISOString();
+          const sp: Species = { id: uuid(), name_ar: typed, name_en: null, scientific_name: null, aliases: [], family: null, notes: null, cover_media_id: null, is_builtin: false, created_at: ts, updated_at: ts };
+          await save("species", sp);
+          speciesId = sp.id;
+        }
+      }
       const c = newCatch(active, {
-        photo_media_id: media.id,
-        identification_status: "unidentified",
-        location_id,
+        photo_media_id: photo,
+        species_id: speciesId,
+        identification_status: speciesId ? "manual" : "unidentified",
+        location_id: loc,
         technique_id: active?.technique_id ?? null,
       });
       await save("catches", c);
+      setOpen(false);
       const where = active ? active.title || (active.location_id && idx.locById.get(active.location_id)?.name) || t("الرحلة الجارية", "the active trip") : null;
       toast(
         active
-          ? t(`حُفظت الصيدة في رحلة «${where}»`, `Catch saved to trip “${where}”`)
-          : t("حُفظت الصيدة بدون رحلة — تجدها في «رحلاتي وصيدي» وإحصائياتي", "Catch saved without a trip — see Trips & catches and your stats"),
+          ? t(`حُفظت الصيدة في رحلة «${where}» وأُضيفت لإحصائياتك`, `Catch saved to trip “${where}” and counted in your stats`)
+          : t("حُفظت الصيدة وأُضيفت لإحصائياتك (بدون رحلة)", "Catch saved and counted in your stats (no trip)"),
         { label: t("أكمل التفاصيل", "Add details"), href: `/catch/edit?id=${c.id}` },
       );
     } catch {
-      toast(t("تعذرت قراءة الصورة، جرّب مرة ثانية", "Couldn't read that photo, try again"));
+      setErr(t("تعذر الحفظ، جرّب مرة ثانية", "Couldn't save, try again"));
     } finally {
-      setBusy(false);
-      if (input.current) input.current.value = "";
+      setSaving(false);
     }
   };
 
@@ -62,14 +116,68 @@ export function QuickCatch() {
     <>
       <button
         type="button"
-        aria-label={t("تصوير سريع لصيدة", "Quick catch photo")}
-        disabled={busy}
-        onClick={() => input.current?.click()}
-        className="no-print fixed end-4 bottom-[calc(var(--safe-bottom)+5rem)] z-40 grid size-14 place-items-center rounded-full bg-teal text-navy shadow-xl shadow-black/40 active:scale-95 disabled:opacity-70"
+        aria-label={t("تسجيل سريع لصيدة", "Quick catch")}
+        onClick={openSheet}
+        className="no-print fixed end-4 bottom-[calc(var(--safe-bottom)+5rem)] z-40 grid size-14 place-items-center rounded-full bg-teal text-navy shadow-xl shadow-black/40 active:scale-95"
       >
-        {busy ? <Loader2 className="size-7 animate-spin" /> : <Plus className="size-8" strokeWidth={3} />}
+        <Plus className="size-8" strokeWidth={3} />
       </button>
-      <input ref={input} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onFile(e.target.files)} />
+      <Sheet open={open} onClose={() => setOpen(false)} title={t("صيدة سريعة", "Quick catch")}>
+        <div className="space-y-4">
+          <div>
+            {photo ? (
+              <div className="relative">
+                <Photo mediaId={photo} variant="full" className="aspect-[4/3] w-full rounded-xl" />
+                <button type="button" aria-label="remove photo" onClick={() => setPhoto(null)} className="absolute end-2 top-2 grid size-9 place-items-center rounded-full bg-black/60 text-white">
+                  <X className="size-5" />
+                </button>
+              </div>
+            ) : (
+              <Button type="button" size="lg" variant="secondary" loading={busy} onClick={() => cam.current?.click()} className="min-h-24 w-full flex-col">
+                <Camera className="size-7" /> {t("صوّر السمكة", "Photograph the fish")}
+              </Button>
+            )}
+            <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onFile(e.target.files)} />
+          </div>
+
+          <Field label={t("اسم السمكة", "Fish name")}>
+            <Input value={fish} onChange={(e) => setFish(e.target.value)} list="quick-species" placeholder={t("مثلاً: بالول", "e.g. Balool")} autoComplete="off" />
+            <datalist id="quick-species">
+              {ds.species.map((s) => (
+                <option key={s.id} value={s.name_ar} />
+              ))}
+            </datalist>
+          </Field>
+          {quick.length > 0 && (
+            <div className="-mt-2 flex flex-wrap gap-1.5">
+              {quick.map((id) => {
+                const s = idx.speciesById.get(id);
+                if (!s) return null;
+                const on = normalizeName(fish) === normalizeName(s.name_ar);
+                return (
+                  <button key={id} type="button" onClick={() => setFish(on ? "" : s.name_ar)} className={cn("min-h-10 rounded-full border px-3.5 text-sm", on ? "border-teal bg-teal/20 text-teal" : "border-line bg-surface-2")}>
+                    {name(s)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <Field label={t("الموقع", "Spot")}>
+            <Select value={loc} onChange={setLoc} placeholder={t("بدون موقع", "No spot")} options={spots.map((l) => ({ value: l.id, label: lang === "ar" ? l.name : l.name_en || l.name }))} />
+          </Field>
+
+          <Notice tone="info">
+            {active
+              ? t(`ستُضاف إلى رحلتك الجارية، وتُحسب في إحصائياتك.`, "It will be added to your active trip and counted in your stats.")
+              : t("ما عندك رحلة جارية — تُحفظ كصيدة بدون رحلة وتُحسب في إحصائياتك، وتقدر تربطها برحلة بعدين.", "No active trip — saved as a stand-alone catch, counted in your stats; link it to a trip later.")}
+          </Notice>
+          {err && <Notice tone="bad">{err}</Notice>}
+          <Button size="lg" className="w-full" loading={saving} onClick={doSave}>
+            {saving ? <Loader2 className="size-5 animate-spin" /> : null} {t("حفظ الصيدة", "Save catch")}
+          </Button>
+        </div>
+      </Sheet>
     </>
   );
 }
