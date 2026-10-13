@@ -31,6 +31,7 @@ import { normalizeName } from "@/lib/normalize";
 import { uuid } from "@/lib/ids";
 import { isActiveStatus } from "@/lib/types";
 import { useIsAdmin } from "@/lib/admin";
+import { PushSettings } from "@/components/PushSettings";
 
 const H = 3_600_000;
 const STALE_MS = 6 * H;
@@ -780,6 +781,7 @@ export default function MarineHome() {
             </div>
           </div>
           )}
+          <PushSettings spots={spots} currentId={spotId} />
           <div>
             <div className="mb-2 text-sm font-medium">{t("اللغة", "Language")}</div>
             <Choice<"ar" | "en">

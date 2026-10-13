@@ -7,7 +7,7 @@
  * - API calls, Supabase and other origins: never cached here. Offline data
  *   lives in IndexedDB and is synchronised by the app itself.
  */
-const CACHE = "ft-shell-v5";
+const CACHE = "ft-shell-v6";
 const ROUTES = [
   "/", "/login", "/quick", "/trips", "/trip", "/trip/edit", "/catch", "/catch/edit", "/collection", "/species",
   "/calendar", "/stats", "/records", "/achievements", "/equipment", "/spots", "/search", "/gallery", "/report",
@@ -144,6 +144,42 @@ self.addEventListener("fetch", (e) => {
         })
         .catch(() => hit);
       return hit || net;
+    }),
+  );
+});
+
+// ---- Push: "the water has stopped" alerts ----------------------------------
+self.addEventListener("push", (e) => {
+  let d = {};
+  try {
+    d = e.data ? e.data.json() : {};
+  } catch {
+    d = { title: "سجي", body: e.data ? e.data.text() : "" };
+  }
+  // let open windows know too (handy for in-app messages and for testing)
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: "ft-push", title: d.title, body: d.body }))));
+  e.waitUntil(
+    self.registration.showNotification(d.title || "سجي", {
+      body: d.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: d.tag || "ft-waqfa",
+      dir: "rtl",
+      lang: "ar",
+      data: { url: d.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) return c.focus();
+      }
+      return self.clients.openWindow(url);
     }),
   );
 });
