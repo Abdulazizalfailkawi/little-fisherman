@@ -76,6 +76,10 @@ function turningPoints(pts: Pt[], ext: Ext[]): Turn[] {
   return out;
 }
 
+// The model runs earlier than the published tide times; keep in sync with
+// TIDE_SHIFT_DEFAULT_MIN in src/lib/marine/client.ts.
+const TIDE_SHIFT_MS = 40 * 60_000;
+
 async function turnsFor(lat: number, lng: number): Promise<Turn[]> {
   const q = new URLSearchParams({
     latitude: lat.toFixed(2),
@@ -92,7 +96,7 @@ async function turnsFor(lat: number, lng: number): Promise<Turn[]> {
   const times: string[] = j?.hourly?.time ?? [];
   const vals: (number | null)[] = j?.hourly?.sea_level_height_msl ?? [];
   const pts: Pt[] = times
-    .map((t, i) => ({ t: Date.parse(t + "Z"), h: vals[i] as number }))
+    .map((t, i) => ({ t: Date.parse(t + "Z") + TIDE_SHIFT_MS, h: vals[i] as number }))
     .filter((p) => Number.isFinite(p.t) && typeof p.h === "number" && Number.isFinite(p.h));
   if (pts.length < 3) return [];
   return turningPoints(pts, findExtrema(pts));

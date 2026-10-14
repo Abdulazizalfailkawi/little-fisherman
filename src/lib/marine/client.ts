@@ -85,10 +85,29 @@ export function hourAt<T extends { t: string }>(hours: T[], at: number): T | nul
 }
 
 /** Turning points (with estimated waqfa windows) of a conditions response. */
-export function turnsOf(c: Conditions): { pts: Pt[]; turns: TurnEvent[] } {
+/**
+ * The sea-level model runs earlier than the published tide times for Kuwait
+ * (about 30–75 min when compared with the Shuwaikh tables and two tide apps).
+ * Every model time is therefore moved later by this many minutes. The admin
+ * can fine-tune it from the settings sheet (stored on the device).
+ */
+export const TIDE_SHIFT_DEFAULT_MIN = 40;
+
+export function tideShiftMin(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = localStorage.getItem("ft.tideShift");
+    const v = raw == null ? NaN : Number(raw);
+    if (Number.isFinite(v)) return Math.min(180, Math.max(-180, v));
+  } catch {}
+  return TIDE_SHIFT_DEFAULT_MIN;
+}
+
+export function turnsOf(c: Conditions, shiftMin = tideShiftMin()): { pts: Pt[]; turns: TurnEvent[] } {
   if (c.tide.status === "unavailable" || c.tide.status === "error") return { pts: [], turns: [] };
-  const pts = cleanSeries(c.tide.series.map((p) => ({ t: p.t, h: p.h })));
-  const ext = c.tide.extremes.map((e) => ({ t: Date.parse(e.t), h: e.h, type: e.type }));
+  const shift = shiftMin * 60_000;
+  const pts = cleanSeries(c.tide.series.map((p) => ({ t: p.t, h: p.h }))).map((p) => ({ ...p, t: p.t + shift }));
+  const ext = c.tide.extremes.map((e) => ({ t: Date.parse(e.t) + shift, h: e.h, type: e.type }));
   return { pts, turns: turningPoints(pts, ext) };
 }
 

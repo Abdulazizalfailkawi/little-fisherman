@@ -18,7 +18,7 @@ import { getGps } from "@/lib/gps";
 import { fmtHijri, toHijri } from "@/lib/hijri";
 import { useNow } from "@/lib/hooks/useNow";
 import { MOON_LABEL, useI18n } from "@/lib/i18n";
-import { getConditions, hazards, hourAt, turnsOf, type ConditionsResult } from "@/lib/marine/client";
+import { TIDE_SHIFT_DEFAULT_MIN, getConditions, hazards, hourAt, tideShiftMin, turnsOf, type ConditionsResult } from "@/lib/marine/client";
 import { PRESET_SPOTS, presetRank } from "@/lib/marine/presets";
 import { KMC_MARINE_URL } from "@/lib/marine/stations";
 import { compass, fmtWind, readWindUnit, saveWindUnit, type WindUnit } from "@/lib/marine/units";
@@ -78,6 +78,8 @@ export default function MarineHome() {
   const isAdmin = useIsAdmin();
   const [headerTop, setHeaderTop] = useState(36);
   const [brandX, setBrandX] = useState(0);
+  const [tideShift, setTideShift] = useState(TIDE_SHIFT_DEFAULT_MIN);
+  useEffect(() => setTideShift(tideShiftMin()), []);
   const [wordAr, setWordAr] = useState({ x: 0, y: 0 });
   const [wordEn, setWordEn] = useState({ x: 0, y: 0 });
   useEffect(() => {
@@ -205,7 +207,7 @@ export default function MarineHome() {
 
   const c = res?.data ?? null;
   const today = dateKey(new Date(now));
-  const model = useMemo(() => (c ? turnsOf(c) : { pts: [], turns: [] as TurnEvent[] }), [c]);
+  const model = useMemo(() => (c ? turnsOf(c, tideShift) : { pts: [], turns: [] as TurnEvent[] }), [c, tideShift]);
   const usingManual = false;
   const turns = model.turns;
   const dayStart = Date.parse(`${today}T00:00:00+03:00`) + dayOff * 24 * H;
@@ -838,6 +840,41 @@ export default function MarineHome() {
             <div dir="ltr" className="mt-1 flex justify-between text-[11px] text-muted">
               <span>{t("يسار", "Left")}</span>
               <span>{t("يمين", "Right")}</span>
+            </div>
+            <div className="mt-4 rounded-xl border border-line/60 p-3">
+              <div className="mb-1 flex items-center justify-between text-sm font-medium">
+                <span>{t("تقريب توقيت المد والجزر", "Tide time adjustment")}</span>
+                <button
+                  type="button"
+                  className="text-xs text-teal"
+                  onClick={() => {
+                    setTideShift(TIDE_SHIFT_DEFAULT_MIN);
+                    try {
+                      localStorage.removeItem("ft.tideShift");
+                    } catch {}
+                  }}
+                >
+                  {t("إعادة", "Reset")}
+                </button>
+              </div>
+              <div className="text-xs text-ink-2">{t(`تأخير كل أوقات المد والجزر ${tideShift} دقيقة عن النموذج`, `All tide times are shifted ${tideShift} min later than the model`)}</div>
+              <input
+                type="range"
+                dir="ltr"
+                min={-60}
+                max={150}
+                step={5}
+                value={tideShift}
+                aria-label={t("تقريب توقيت المد", "Tide time adjustment")}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setTideShift(v);
+                  try {
+                    localStorage.setItem("ft.tideShift", String(v));
+                  } catch {}
+                }}
+                className="w-full accent-[#7fb6f0]"
+              />
             </div>
             {(
               [

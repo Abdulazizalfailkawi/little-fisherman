@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanSeries, findExtrema, heightAt, phaseAt, phaseToTide, surroundingExtrema } from "../marine/tide";
-import { getConditions, hourAt, snapshotRows, tideAt } from "../marine/client";
+import { getConditions, hourAt, snapshotRows, tideAt, turnsOf } from "../marine/client";
 import { fetchWeather, fetchMarine, tideFromMarine } from "../marine/providers";
 import type { Conditions, MarineHour, WeatherHour } from "../marine/types";
 import { catchEnv } from "../marine/env";
@@ -120,6 +120,19 @@ describe("environmental snapshots", () => {
     const rows = snapshotRows(cond(), new Date(T0 + 72 * H), ctx);
     expect(rows.find((r) => r.category === "weather")!.kind).toBe("unavailable");
     expect(tideAt(cond(), T0 + 72 * H)).toBeNull();
+  });
+
+  it("shifts every model tide time by the same number of minutes (calibration)", () => {
+    const base = turnsOf(cond(), 0);
+    const moved = turnsOf(cond(), 50);
+    expect(base.turns.length).toBeGreaterThan(2);
+    expect(moved.turns.length).toBe(base.turns.length);
+    moved.turns.forEach((t, i) => {
+      expect(t.t - base.turns[i].t).toBe(50 * 60_000);
+      expect(t.type).toBe(base.turns[i].type);
+      if (t.waqfaStart != null) expect(t.waqfaStart - base.turns[i].waqfaStart!).toBe(50 * 60_000);
+    });
+    expect(moved.pts[0].t - base.pts[0].t).toBe(50 * 60_000);
   });
 });
 
