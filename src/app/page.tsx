@@ -78,10 +78,24 @@ export default function MarineHome() {
   const isAdmin = useIsAdmin();
   const [headerTop, setHeaderTop] = useState(36);
   const [brandX, setBrandX] = useState(0);
+  const [wordAr, setWordAr] = useState({ x: 0, y: 0 });
+  const [wordEn, setWordEn] = useState({ x: 0, y: 0 });
   useEffect(() => {
     try {
       const v = Number(localStorage.getItem("ft.brandTop"));
       if (localStorage.getItem("ft.brandTop") != null && Number.isFinite(v)) setHeaderTop(Math.min(160, Math.max(0, v)));
+      const rd = (k: string) => {
+        try {
+          const o = JSON.parse(localStorage.getItem(k) ?? "null");
+          return o && Number.isFinite(o.x) && Number.isFinite(o.y) ? { x: Math.min(160, Math.max(-160, o.x)), y: Math.min(120, Math.max(-60, o.y)) } : null;
+        } catch {
+          return null;
+        }
+      };
+      const wa = rd("ft.wordAr");
+      const we = rd("ft.wordEn");
+      if (wa) setWordAr(wa);
+      if (we) setWordEn(we);
       const x = Number(localStorage.getItem("ft.brandX"));
       if (localStorage.getItem("ft.brandX") != null && Number.isFinite(x)) setBrandX(Math.min(140, Math.max(-140, x)));
     } catch {}
@@ -205,18 +219,23 @@ export default function MarineHome() {
     if (c && !usingManual && model.turns.length && !model.turns.some((x) => x.t > now) && online) void load(true);
   }, [c, usingManual, model.turns, now, online, load]);
 
-  const w = c ? hourAt(c.weather.hours, now) : null;
-  const cur = c?.current ?? null;
+  // The viewed day: today ("now") or a later day (its midday, or the hour tapped on the graph).
+  const viewing = dayOff > 0;
+  const viewMs = viewing ? dayStart + 12 * H : now;
+  const refT = viewing ? sel ?? viewMs : now;
+  const w = c ? hourAt(c.weather.hours, refT) : null;
+  const cur = viewing ? null : c?.current ?? null;
   const wx = cur ?? w;
-  const m = c ? hourAt(c.marine.hours, now) : null;
-  const moon = moonAt(new Date(now));
-  const sun = pt ? sunTimes(new Date(now), pt.lat, pt.lng) : null;
-  const warn = c ? hazards(c, now, now + 24 * H) : [];
-  const hijri = toHijri(new Date(now), hijriOffset);
-  const cyc = cycleInfo(today, hijriOffset, readCycleConfig());
+  const m = c ? hourAt(c.marine.hours, refT) : null;
+  const moon = moonAt(new Date(viewMs));
+  const sun = pt ? sunTimes(new Date(viewMs), pt.lat, pt.lng) : null;
+  const warn = c ? hazards(c, viewing ? dayStart : now, viewing ? dayStart + 24 * H : now + 24 * H) : [];
+  const hijri = toHijri(new Date(viewMs), hijriOffset);
+  const cyc = cycleInfo(dateKey(new Date(viewMs)), hijriOffset, readCycleConfig());
   const active = ds.trips.find((x) => isActiveStatus(x.status));
-  const chartFrom = now - 2 * H;
-  const chartTo = now + 24 * H;
+  const chartFrom = viewing ? dayStart : now - 2 * H;
+  const chartTo = viewing ? dayStart + 24 * H : now + 24 * H;
+  const dayLevels = dayTurns.map((x) => x.h).filter((x): x is number => x != null);
   const clock = new Intl.DateTimeFormat(lang === "ar" ? "ar-KW-u-nu-latn" : "en-GB", { timeZone: "Asia/Kuwait", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(now));
   const seaLevel: "calm" | "moderate" | "rough" | null =
     wx?.wind == null && m?.wave_h == null
@@ -246,8 +265,8 @@ export default function MarineHome() {
           <div className="flex items-center justify-center gap-2" style={{ marginTop: isAdmin ? headerTop : 36, transform: `translateX(${isAdmin ? brandX : 0}px)` }}>
             <img src="/icons/sajji-mark.svg" alt="" className="size-24 shrink-0" />
             <div className="flex flex-col items-center leading-tight">
-              <div className="text-5xl font-extrabold">{t("سجي", "SAJJI")}</div>
-              <div className="mt-2 text-base font-semibold tracking-[0.3em] text-ocean">{lang === "ar" ? "SAJJI" : "سجي"}</div>
+              <div className="text-5xl font-extrabold" style={{ transform: `translate(${isAdmin ? (lang === "ar" ? wordAr : wordEn).x : 0}px, ${isAdmin ? (lang === "ar" ? wordAr : wordEn).y : 0}px)` }}>{t("سجي", "SAJJI")}</div>
+              <div className="mt-2 text-base font-semibold tracking-[0.3em] text-ocean" style={{ transform: `translate(${isAdmin ? (lang === "ar" ? wordEn : wordAr).x : 0}px, ${isAdmin ? (lang === "ar" ? wordEn : wordAr).y : 0}px)` }}>{lang === "ar" ? "SAJJI" : "سجي"}</div>
             </div>
           </div>
           <div className="flex justify-end">
@@ -365,17 +384,51 @@ export default function MarineHome() {
             </Notice>
           )}
 
+        {turns.length ? (
+          <div className="mb-2 flex gap-2">
+            {[0, 1, 2].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => {
+                  setDayOff(d);
+                  setSel(null);
+                }}
+                className={cn("flex-1 rounded-xl border px-2 py-1.5 text-center text-xs font-semibold", dayOff === d ? "border-ocean bg-ocean/20 text-white" : "border-line bg-surface-2 text-ink-2")}
+              >
+                {d === 0 ? t("اليوم", "Today") : d === 1 ? t("باجر", "Tomorrow") : dayName(dayStart - dayOff * 24 * H + d * 24 * H + 12 * H, lang)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
           {/* Tile 1 — tide & clock */}
           <Tile
             icon={<Waves className="size-4" />}
             title={t("المد والجزر", "Tide")}
-            tone={st.direction === "rising" ? "rise" : st.direction === "falling" ? "fall" : "warn"}
+            tone={viewing ? "rise" : st.direction === "rising" ? "rise" : st.direction === "falling" ? "fall" : "warn"}
             open={open1}
             onToggle={() => setOpen1((v) => !v)}
             hint={t("اضغط للتفاصيل", "Tap for details")}
-            aside={<span className="ltr font-mono text-lg font-bold tabular-nums">{clock}</span>}
+            aside={viewing ? <span className="text-sm font-bold">{dayName(viewMs, lang)}</span> : <span className="ltr font-mono text-lg font-bold tabular-nums">{clock}</span>}
           >
-            {st.direction ? (
+            {viewing ? (
+              <div>
+                <div className="text-xl font-extrabold">
+                  {dayName(viewMs, lang)} · {fmtDate(new Date(viewMs), lang)}
+                </div>
+                <div className="mt-1 text-xs text-white">
+                  {dayLevels.length ? (
+                    <bdi>
+                      {t(`أعلى منسوب ${Math.max(...dayLevels).toFixed(2)} م · أدنى منسوب ${Math.min(...dayLevels).toFixed(2)} م`, `High ${Math.max(...dayLevels).toFixed(2)} m · low ${Math.min(...dayLevels).toFixed(2)} m`)}
+                    </bdi>
+                  ) : (
+                    t("بيانات المد غير متوفرة", "Tide data unavailable")
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-muted">{t("توقع لهذا اليوم — يتحدّث مع الأيام", "Forecast for this day — it updates as the day gets closer")}</div>
+              </div>
+            ) : st.direction ? (
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <div className={cn("flex items-center gap-1.5 text-4xl font-extrabold", dirColor(st.direction))}>
@@ -411,20 +464,6 @@ export default function MarineHome() {
             ) : (
               <div className="text-sm text-muted">{t("بيانات المد غير متوفرة", "Tide data unavailable")}</div>
             )}
-            {turns.length ? (
-              <div className="mt-3 flex gap-2">
-                {[0, 1, 2].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDayOff(d)}
-                    className={cn("flex-1 rounded-xl border px-2 py-1.5 text-center text-xs font-semibold", dayOff === d ? "border-ocean bg-ocean/20 text-white" : "border-line bg-surface-2 text-ink-2")}
-                  >
-                    {d === 0 ? t("اليوم", "Today") : d === 1 ? t("باجر", "Tomorrow") : dayName(dayStart - dayOff * 24 * H + d * 24 * H + 12 * H, lang)}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             {turns.length ? (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {([
@@ -462,7 +501,7 @@ export default function MarineHome() {
             ) : null}
             {open1 && (
               <div className="mt-3 space-y-2 border-t border-line/40 pt-3 text-sm">
-                {st.turn && (
+                {!viewing && st.turn && (
                   <div className="text-xs text-ink-2">
                     {st.turn.type === "high" ? t("سجي ← ثبر", "Saji → Thabr") : t("ثبر ← سجي", "Thabr → Saji")} · {t("التحول", "turn")} {fmtTime(st.turn.t, lang)}
                     {st.turn.waqfaStart != null && st.turn.waqfaEnd != null ? (
@@ -479,7 +518,7 @@ export default function MarineHome() {
                 )}
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   <Badge>
-                    {fmtDate(new Date(now), lang, { weekday: "long" })} · {fmtDate(new Date(now), lang)}
+                    {fmtDate(new Date(viewMs), lang, { weekday: "long" })} · {fmtDate(new Date(viewMs), lang)}
                   </Badge>
                   <Badge>{fmtHijri(hijri, lang)}</Badge>
                   <Badge>
@@ -516,6 +555,11 @@ export default function MarineHome() {
             hint={t("اضغط للتفاصيل", "Tap for details")}
             aside={<span className={cn("rounded-full px-2.5 py-0.5 text-sm font-bold", seaLevel === "rough" ? "bg-fall/15 text-fall" : seaLevel === "moderate" ? "bg-warn/15 text-warn" : seaLevel === "calm" ? "bg-rise/15 text-rise" : "bg-surface-2 text-muted")}>{seaLabel}</span>}
           >
+            {viewing && (
+              <p className="mb-2 text-[11px] text-ink-2">
+                {t(`التوقع عند ${fmtTime(refT, lang)} — اضغط على الجراف لتغيير الساعة`, `Forecast at ${fmtTime(refT, lang)} — tap the graph to change the hour`)}
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl border border-ocean/30 bg-ocean/10 px-2 py-2">
                 <div className="flex items-center justify-center gap-1 text-[11px] font-medium text-ocean">
@@ -610,7 +654,7 @@ export default function MarineHome() {
                       </thead>
                       <tbody>
                         {c.weather.hours
-                          .filter((h) => Date.parse(h.t) >= now - H / 2 && Date.parse(h.t) <= now + 24 * H)
+                          .filter((h) => Date.parse(h.t) >= (viewing ? dayStart : now - H / 2) && Date.parse(h.t) <= (viewing ? dayStart + 24 * H : now + 24 * H))
                           .map((h) => {
                             const tt = Date.parse(h.t);
                             const mh = hourAt(c.marine.hours, tt);
@@ -638,7 +682,7 @@ export default function MarineHome() {
           {/* Tile 3 — tide graph */}
           <Card className="mt-2 p-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{t("Graph — صعود وهبوط", "Graph — rise & fall")}</span>
+              <span className="text-sm font-semibold">{t("Graph — صعود وهبوط", "Graph — rise & fall")}{viewing ? ` — ${dayName(viewMs, lang)}` : ""}</span>
               {sel != null && (
                 <button className="text-xs text-teal" onClick={() => setSel(null)}>
                   {t("عودة للآن", "Back to now")}
@@ -738,6 +782,12 @@ export default function MarineHome() {
                 onClick={() => {
                   setHeaderTop(36);
                   setBrandX(0);
+                  setWordAr({ x: 0, y: 0 });
+                  setWordEn({ x: 0, y: 0 });
+                  try {
+                    localStorage.removeItem("ft.wordAr");
+                    localStorage.removeItem("ft.wordEn");
+                  } catch {}
                   try {
                     localStorage.removeItem("ft.brandX");
                     localStorage.removeItem("ft.brandTop");
@@ -789,6 +839,55 @@ export default function MarineHome() {
               <span>{t("يسار", "Left")}</span>
               <span>{t("يمين", "Right")}</span>
             </div>
+            {(
+              [
+                { k: "ft.wordAr", title: t("كلمة «سجي» (عربي)", "The Arabic word «سجي»"), v: wordAr, set: setWordAr },
+                { k: "ft.wordEn", title: t("كلمة SAJJI (إنجليزي)", "The English word SAJJI"), v: wordEn, set: setWordEn },
+              ] as const
+            ).map((w) => (
+              <div key={w.k} className="mt-4 rounded-xl border border-line/60 p-3">
+                <div className="mb-2 text-sm font-medium">{w.title}</div>
+                <div className="text-[11px] text-muted">{t("فوق / تحت", "Up / down")}</div>
+                <input
+                  type="range"
+                  min={-60}
+                  max={120}
+                  step={2}
+                  value={w.v.y}
+                  aria-label={`${w.title} ${t("فوق تحت", "up down")}`}
+                  onChange={(e) => {
+                    const nv = { ...w.v, y: Number(e.target.value) };
+                    w.set(nv);
+                    try {
+                      localStorage.setItem(w.k, JSON.stringify(nv));
+                    } catch {}
+                  }}
+                  className="w-full accent-[#7fb6f0]"
+                />
+                <div className="mt-1 text-[11px] text-muted">{t("يمين / يسار", "Right / left")}</div>
+                <input
+                  type="range"
+                  dir="ltr"
+                  min={-160}
+                  max={160}
+                  step={2}
+                  value={w.v.x}
+                  aria-label={`${w.title} ${t("يمين يسار", "right left")}`}
+                  onChange={(e) => {
+                    const nv = { ...w.v, x: Number(e.target.value) };
+                    w.set(nv);
+                    try {
+                      localStorage.setItem(w.k, JSON.stringify(nv));
+                    } catch {}
+                  }}
+                  className="w-full accent-[#7fb6f0]"
+                />
+                <div dir="ltr" className="mt-1 flex justify-between text-[11px] text-muted">
+                  <span>{t("يسار", "Left")}</span>
+                  <span>{t("يمين", "Right")}</span>
+                </div>
+              </div>
+            ))}
           </div>
           )}
           <PushSettings spots={spots} currentId={spotId} />
