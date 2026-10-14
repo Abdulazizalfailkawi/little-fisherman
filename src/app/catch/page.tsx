@@ -15,6 +15,7 @@ import { MOON_LABEL, TIDE_LABEL, label, useI18n } from "@/lib/i18n";
 import { catchDepth, catchLocation, catchTechnique } from "@/lib/stats";
 import { fmtDateTime } from "@/lib/time";
 import { useIsAdmin } from "@/lib/admin";
+import { ShareCatch } from "@/components/ShareCatch";
 
 export default function Page() {
   return (
@@ -79,6 +80,7 @@ function CatchDetail() {
       )}
       <div className="mb-3">
         <CatchSummaryCard c={c} />
+        <ShareCatch c={c} />
       </div>
 
       {isAdmin && !c.species_id && c.photo_media_id && (

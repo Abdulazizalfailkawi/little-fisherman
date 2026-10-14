@@ -11,7 +11,7 @@ const CACHE = "ft-shell-v7";
 const ROUTES = [
   "/", "/login", "/quick", "/trips", "/trip", "/trip/edit", "/catch", "/catch/edit", "/collection", "/species",
   "/calendar", "/stats", "/records", "/achievements", "/equipment", "/spots", "/search", "/gallery", "/report",
-  "/settings", "/account", "/more", "/marine", "/catches", "/reports", "/spot", "/analytics", "/account", "/marks",
+  "/settings", "/account", "/community", "/more", "/marine", "/catches", "/reports", "/spot", "/analytics", "/account", "/marks",
 ];
 const EXTRA = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/apple-touch-icon.png", "/icons/sajji-mark.svg"];
 

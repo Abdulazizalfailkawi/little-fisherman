@@ -10,6 +10,7 @@ import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
 import { fmtDate } from "@/lib/time";
+import { adminHide, adminReports, signedUrls, type ReportRow } from "@/lib/community";
 
 interface Row {
   id: string;
@@ -33,11 +34,20 @@ export default function AdminPage() {
   const { t, lang } = useI18n();
   const [stats, setStats] = useState<Stats | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const loadReports = () =>
+    void adminReports().then(async (r) => {
+      setReports(r);
+      const paths = r.map((x) => x.thumb_path).filter((x): x is string => !!x);
+      if (paths.length) setThumbs(await signedUrls(paths));
+    }, () => undefined);
 
   useEffect(() => {
     if (!isAdmin) return;
     const sb = supabase();
     if (!sb) return;
+    loadReports();
     void sb.rpc("admin_stats").then(({ data, error }) => {
       if (error) setErr(error.message);
       else setStats(data as Stats);
@@ -95,6 +105,40 @@ export default function AdminPage() {
                 <b className="text-center">{u.catches}</b>
               </div>
             ))}
+          </Card>
+          <Card className="p-3">
+            <div className="mb-2 font-semibold">
+              {t("بلاغات المجتمع", "Community reports")} <span className="text-ocean">({reports.length})</span>
+            </div>
+            {!reports.length && <div className="text-xs text-muted">{t("ما فيه بلاغات.", "No reports.")}</div>}
+            {reports.map((r) => {
+              const hidden = r.comment_id ? r.comment_hidden : r.post_hidden;
+              return (
+                <div key={r.id} className="flex items-start gap-3 border-b border-line/20 py-2.5 text-sm last:border-0">
+                  {r.thumb_path && thumbs[r.thumb_path] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumbs[r.thumb_path]} alt="" className="size-14 shrink-0 rounded-lg object-cover" />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] text-muted">
+                      {r.comment_id ? t("تعليق", "Comment") : t("منشور", "Post")} · {fmtDate(r.created_at, lang)}
+                    </div>
+                    <div className="line-clamp-2 whitespace-pre-wrap">{r.comment_id ? r.comment_body : r.post_body || t("(بدون نص)", "(no text)")}</div>
+                    {r.reason && <div className="text-xs text-warn">{t("السبب:", "Reason:")} {r.reason}</div>}
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg border border-warn/50 px-2.5 py-1.5 text-xs text-warn"
+                    onClick={async () => {
+                      await adminHide({ post: r.comment_id ? null : r.post_id, comment: r.comment_id }, !hidden);
+                      loadReports();
+                    }}
+                  >
+                    {hidden ? t("إظهار", "Unhide") : t("إخفاء", "Hide")}
+                  </button>
+                </div>
+              );
+            })}
           </Card>
           <p className="text-[11px] text-muted">{t("الأرقام تشمل مستخدمي الحسابات السحابية فقط (من يستخدم التطبيق بدون حساب بياناته على جهازه ولا تظهر هنا).", "Cloud accounts only — people using the app without an account keep their data on their device and aren't counted.")}</p>
         </div>
