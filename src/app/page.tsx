@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, MapPinPlus, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ExternalLink, Fish, LocateFixed, Sparkles, MapPinPlus, Settings as SettingsIcon, MapPin, PencilLine, Plus, RefreshCw, Sunrise, Sunset, Timer, Waves, Wind } from "lucide-react";
 import { KindBadge } from "@/components/EnvPanel";
 import { LocationForm } from "@/components/LocationForm";
 import { TideChart } from "@/components/TideChart";
@@ -685,6 +685,9 @@ export default function MarineHome() {
           <Card className="mt-2 p-3">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold">{t("Graph — صعود وهبوط", "Graph — rise & fall")}{viewing ? ` — ${dayName(viewMs, lang)}` : ""}</span>
+              <Link href={`/best-times?day=${dayOff}`} className="flex items-center gap-1 rounded-full border border-ocean/50 bg-ocean/10 px-2.5 py-1 text-xs font-semibold text-white">
+                <Sparkles className="size-3.5 text-ocean" /> {t("أفضل الأوقات", "Best times")}
+              </Link>
               {sel != null && (
                 <button className="text-xs text-teal" onClick={() => setSel(null)}>
                   {t("عودة للآن", "Back to now")}
