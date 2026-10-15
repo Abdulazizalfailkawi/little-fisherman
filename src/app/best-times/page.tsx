@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Moon, Sunrise, Sunset, Waves } from "lucide-react";
 import { Badge, Card, Empty, Notice, PageHeader, Select, Spinner, cn } from "@/components/ui";
-import { PROFILES, MIN_PERSONAL, profileFor, scoreDay, type BestWindow, type Why } from "@/lib/besttimes";
+import { MAIN_SPECIES, MIN_PERSONAL, profileFor, scoreDay, type BestWindow, type Why } from "@/lib/besttimes";
 import { catchTidePhases } from "@/lib/analyticsExtra";
 import { useStore } from "@/lib/db/store";
 import { useI18n } from "@/lib/i18n";
@@ -57,7 +57,7 @@ function BestTimes() {
   }, [spots, spotId]);
 
   // species: the main Kuwaiti fish first
-  const main = useMemo(() => Object.keys(PROFILES).map((n) => ds.species.find((s) => s.name_ar === n)).filter((s): s is NonNullable<typeof s> => !!s), [ds.species]);
+  const main = useMemo(() => MAIN_SPECIES.map((n) => ds.species.find((s) => s.name_ar === n)).filter((s): s is NonNullable<typeof s> => !!s), [ds.species]);
   useEffect(() => {
     if (speciesId || !ds.species.length) return;
     let saved: string | null = null;
@@ -236,7 +236,16 @@ function BestTimes() {
                           {w.turn.type === "high" ? t("ساعتين حول أعلى مد", "±2 h around high tide") : t("ساعتين حول أدنى جزر", "±2 h around low tide")} · <bdi>{fmtTime(w.turn.t, lang)}</bdi>
                         </Badge>
                       )}
-                      {w.turn?.slack && <Badge>{WHY.slack}</Badge>}
+                      {w.peak?.kind === "slack" && (
+                        <Badge>
+                          {WHY.slack} <bdi>{fmtTime(w.peak.from, lang)}–{fmtTime(w.peak.to, lang)}</bdi>
+                        </Badge>
+                      )}
+                      {w.peak?.kind === "start" && (
+                        <Badge>
+                          {t("رشة الماء 🌊 (أنشط وقت)", "Start of the run 🌊 (peak)")} <bdi>{fmtTime(w.peak.from, lang)}–{fmtTime(w.peak.to, lang)}</bdi>
+                        </Badge>
+                      )}
                       {w.why.map((k) => (
                         <Badge key={k}>{WHY[k]}</Badge>
                       ))}
@@ -344,22 +353,16 @@ function BestTimes() {
               </button>
               {how && (
                 <Card className="mt-2 space-y-2 p-3.5 text-xs leading-relaxed text-ink-2">
+                  <p>{t("لكل مد وجزر في اليوم نافذة أربع ساعات: ساعتين قبل الوقفة وساعتين بعدها. وجوّا النافذة نحدد أنشط وقت:", "Every high and low tide gets a four-hour window: two hours before and two hours after the slack. Inside it we mark the peak:")}</p>
                   <p>
-                    {t("نقيّم كل نص ساعة من 0 إلى 100 من ثلاثة أشياء:", "Every half hour is scored 0–100 from three things:")}
+                    <b className="text-white">{t("أغلب الأسماك (السبيطي والشعم والنويبي…): ", "Most fish (sobaity, shaam, nuwaibi…): ")}</b>
+                    {t("أنشط وقت في بداية المد بعد الوقفة (رشة الماء)، وتنشط مع الثبر (هبوط الماء)، وتحب الشروق.", "peak at the start of the run after the slack, active in the falling tide, and keen at sunrise.")}
                   </p>
                   <p>
-                    <b className="text-white">{t("١. حركة المد (٥٠٪):", "1. Tide movement (50%):")}</b> {t("المياه المتحركة (سجي وثبر) أحسن من الوقفة، من سرعة تغيّر المنسوب في الجراف.", "moving water beats slack water, from the tide-graph speed.")}
+                    <b className="text-white">{t("البالول والهامور: ", "Balool & hamour: ")}</b>
+                    {t("القمة عند الوقفة نفسها (٣٠ دقيقة قبل وبعد)، والضوء يعطي بس شوي. والبالول يضاف له كمان وقت الغروب (ساعة قبل وساعة بعد).", "the peak is the slack itself (30 min either side); light adds only a little. Balool also gets sunset (an hour either side).")}
                   </p>
-                  <p>
-                    <b className="text-white">{t("٢. الضوء (٣٥٪):", "2. Light (35%):")}</b> {t("ساعة قبل الشروق وساعة ونص بعده، والغروب، أفضل من منتصف النهار، والليل يختلف حسب السمكة.", "around sunrise and sunset beats midday; night depends on the fish.")}
-                  </p>
-                  <p>
-                    <b className="text-white">{t("٣. تفضيل السمكة (١٥٪):", "3. Fish preference (15%):")}</b> {t("تقدير تقريبي للسجي أو الثبر لكل نوع.", "a rough rising/falling preference per fish.")}
-                  </p>
-                  <p>
-                    <b className="text-white">{t("البالول والهامور (قاعدة مجرّبة):", "Balool & hamour (a tested rule):")}</b> {t("ساعتين قبل وساعتين بعد أعلى مد، وساعتين قبل وساعتين بعد أدنى جزر، وأقواها وقت الوقفة. لكل مد وجزر نافذة (ممكن تصيد بأوقات ثانية، لكن هذي أحسن أوقاتهم). والضوء يعطي بس شوي من التقييم.", "two hours either side of every high and low tide, strongest at the slack. Each tide gets its own window (you can still catch at other times, but these are their best). Light adds only a little.")}
-                  </p>
-                  <p>{t("وبعدها ننزّل التقييم لو الرياح فوق ٢٥ كم/س أو الموج فوق ٠٫٨ م. ولو عندك ٨ صيدات أو أكثر من نفس النوع، نأخذ حالة المد وقت صيدك بالحسبان.", "Then we lower it for wind above 25 km/h or waves above 0.8 m. With 8+ catches of the same fish, your own tide history is blended in.")}</p>
+                  <p>{t("بعدها ننزّل التقييم لو الرياح فوق ٢٥ كم/س أو الموج فوق ٠٫٨ م. ولو عندك ٨ صيدات أو أكثر من نفس النوع، نأخذ حالة المد وقت صيدك بالحسبان. ممكن تصيد بأوقات ثانية، لكن هذي القاعدة المجرّبة.", "Then we lower it for wind above 25 km/h or waves above 0.8 m. With 8+ catches of the same fish, your own tide history is blended in. You can still catch at other times — this is the tested rule.")}</p>
                   <p className="text-warn">{t("هذا تقدير مبني على قواعد عامة ومد تقديري من نموذج، مو ضمان للصيد. استخدمه كدليل وجرّب بنفسك.", "This is an estimate from general rules and a modelled tide — not a guarantee. Use it as a guide.")}</p>
                 </Card>
               )}

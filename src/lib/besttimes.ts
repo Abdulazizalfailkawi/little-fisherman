@@ -19,6 +19,8 @@ export interface Profile {
   slack: number;
   /** hours either side of every high / low tide that count as the fishing band (0 = off). A tested rule for grouper. */
   turnBand: number;
+  /** also a fishing window around sunset (told by the user for balool) */
+  duskWindow?: boolean;
   /** how good each light period is for this species (0..1) */
   dawn: number;
   dusk: number;
@@ -26,21 +28,23 @@ export interface Profile {
   day: number;
 }
 
-const BASE: Profile = { rising: 0.5, falling: 0.5, slack: 0, turnBand: 0, dawn: 0.9, dusk: 1, night: 0.4, day: 0.15 };
+/**
+ * General rule (told by the user — sobaity, shaam, nuwaibi and most fish): active within
+ * 2 h before and 2 h after the slack, strongest at the start of the run after the slack
+ * (رشة الماء), active in the falling tide (ثبر), and keen at sunrise.
+ */
+const BASE: Profile = { rising: 0.6, falling: 0.8, slack: 0, turnBand: 2, dawn: 1, dusk: 0.7, night: 0.3, day: 0.15 };
 
-/** Rough preferences by species (Arabic name). Everything else uses BASE. */
+/** Fish whose peak is the slack itself rather than the start of the run. */
 export const PROFILES: Record<string, Partial<Profile>> = {
-  شعم: { rising: 0.8, falling: 0.4, dusk: 1, dawn: 0.9, night: 0.45 },
-  سبيطي: { rising: 0.8, falling: 0.4, dusk: 1, dawn: 0.9, night: 0.4 },
   // Told by the user (a tested rule): hamour / balool bite 2 h before and after every high and low tide, strongest at the slack.
-  بالول: { slack: 1, turnBand: 2, rising: 0.3, falling: 0.3, dusk: 1, dawn: 0.8, night: 0.5, day: 0.2 },
-  هامور: { slack: 1, turnBand: 2, rising: 0.3, falling: 0.3, dusk: 1, dawn: 0.8, night: 0.5, day: 0.2 },
-  نويبي: { rising: 0.5, falling: 0.6, dusk: 0.9, dawn: 0.7, night: 0.8 },
-  شعري: { rising: 0.6, falling: 0.5, dusk: 1, dawn: 1, night: 0.4 },
-  كنعد: { rising: 0.5, falling: 0.5, dusk: 1, dawn: 1, night: 0.1, day: 0.3 },
-  جيذر: { rising: 0.5, falling: 0.5, dusk: 1, dawn: 1, night: 0.1, day: 0.3 },
-  جش: { rising: 0.5, falling: 0.5, dusk: 1, dawn: 1, night: 0.2, day: 0.3 },
+  // Balool is also active at sunset (told by the user).
+  بالول: { slack: 1, duskWindow: true, rising: 0.3, falling: 0.3, dusk: 1, dawn: 0.6, night: 0.4, day: 0.15 },
+  هامور: { slack: 1, rising: 0.3, falling: 0.3, dusk: 1, dawn: 0.8, night: 0.5, day: 0.2 },
 };
+
+/** The fish shown as quick chips, in order. */
+export const MAIN_SPECIES = ["شعم", "سبيطي", "بالول", "هامور", "نويبي", "شعري", "كنعد", "جيذر", "جش"];
 
 export function profileFor(nameAr: string | null | undefined): Profile {
   return { ...BASE, ...(nameAr ? PROFILES[nameAr] : undefined) };
@@ -69,6 +73,8 @@ export interface Slot {
 export interface BestWindow {
   from: number;
   to: number;
+  /** the strongest part of a turn-band window: the slack itself, or the start of the run after it */
+  peak?: { from: number; to: number; kind: "slack" | "start" };
   /** set for turn-band windows: the high/low tide this window is built around */
   turn?: { t: number; type: "high" | "low"; slack: boolean };
   score: number;
@@ -140,7 +146,16 @@ export function scoreDay(opts: {
     if (band > 0 && near) {
       // tested rule: ±band hours around every high / low tide, strongest within 30 min of the turn (the slack)
       const d = Math.abs(near.minutes);
-      tideF = d <= 30 ? 1 : d <= band ? 1 - (0.35 * (d - 30)) / (band - 30) : Math.max(0.15, 0.65 - (0.5 * (d - band)) / 60);
+      if (opts.profile.slack > 0) {
+        tideF = d <= 30 ? 1 : d <= band ? 1 - (0.35 * (d - 30)) / (band - 30) : Math.max(0.15, 0.65 - (0.5 * (d - band)) / 60);
+      } else {
+        // general fish: best in the first 90 min after the slack (the run starts), a bit lower in the 2 h before it
+        const m = near.minutes; // positive = after the turn
+        if (m >= 0 && m <= 90) tideF = 1;
+        else if (m > 90 && m <= band) tideF = 1 - (0.35 * (m - 90)) / Math.max(1, band - 90);
+        else if (m < 0 && m >= -band) tideF = 0.65 + (0.3 * (band + m)) / band;
+        else tideF = Math.max(0.15, 0.65 - (0.5 * (d - band)) / 60);
+      }
     } else {
       tideF = opts.profile.slack > 0 ? Math.max(move * (1 - 0.4 * opts.profile.slack), opts.profile.slack * slack) : move;
     }
@@ -148,7 +163,7 @@ export function scoreDay(opts: {
     const cond = condFactor(opts.cond(mid));
     const dirF = dir === "rising" ? opts.profile.rising : dir === "falling" ? opts.profile.falling : 0;
     const dirPart = opts.profile.slack > 0 && dir === "waqfa" ? 1 : dirF;
-    let raw = band > 0 ? 0.8 * tideF + 0.2 * l.value : 0.5 * tideF + 0.35 * l.value + 0.15 * dirPart;
+    let raw = band > 0 ? (opts.profile.slack > 0 ? (opts.profile.duskWindow ? 0.7 * tideF + 0.3 * l.value : 0.8 * tideF + 0.2 * l.value) : 0.65 * tideF + 0.2 * l.value + 0.15 * dirF) : 0.5 * tideF + 0.35 * l.value + 0.15 * dirPart;
     if (usePersonal && dir) {
       const n = opts.personal!.n;
       const share = (dir === "rising" ? opts.personal!.rising : dir === "falling" ? opts.personal!.falling : opts.personal!.waqfa) / n;
@@ -167,12 +182,26 @@ export function scoreDay(opts: {
         const from = Math.max(opts.dayStart, x.t - bandMs);
         const to = Math.min(dayEnd, x.t + bandMs);
         const part = slots.filter((s) => s.t + step / 2 >= from && s.t + step / 2 < to);
-        const peak = part.length ? Math.max(...part.map((s) => s.score)) : 0;
+        const best = part.length ? Math.max(...part.map((s) => s.score)) : 0;
         const why: Why[] = [];
+        if (sunrise != null && sunrise >= from - 15 * MIN && sunrise <= to + 15 * MIN) why.push("dawn");
+        if (sunset != null && (opts.profile.duskWindow ? from < sunset + 60 * MIN && to > sunset - 60 * MIN : sunset >= from - 15 * MIN && sunset <= to + 15 * MIN)) why.push("dusk");
         if (part.length && part.reduce((a, s) => a + s.cond, 0) / part.length < 0.8) why.push("rough");
-        return { from, to, score: peak, rating: peak >= 70 ? ("excellent" as const) : peak >= 50 ? ("good" as const) : ("fair" as const), why, turn: { t: x.t, type: x.type, slack: x.waqfaStart != null } };
+        const peak = opts.profile.slack > 0 ? { from: x.t - 30 * MIN, to: x.t + 30 * MIN, kind: "slack" as const } : { from: x.t, to: x.t + 90 * MIN, kind: "start" as const };
+        return { from, to, score: best, rating: best >= 70 ? ("excellent" as const) : best >= 50 ? ("good" as const) : ("fair" as const), why, peak, turn: { t: x.t, type: x.type, slack: x.waqfaStart != null } };
       })
       .sort((a, b) => a.from - b.from);
+    // balool: sunset is a fishing time of its own — add a window when no tide window already covers it
+    if (opts.profile.duskWindow && sunset != null) {
+      const from = Math.max(opts.dayStart, sunset - 60 * MIN);
+      const to = Math.min(dayEnd, sunset + 60 * MIN);
+      if (to > from && !bandWindows.some((w) => w.from < to && w.to > from)) {
+        const part = slots.filter((s) => s.t + step / 2 >= from && s.t + step / 2 < to);
+        const best = part.length ? Math.max(...part.map((s) => s.score)) : 0;
+        bandWindows.push({ from, to, score: best, rating: best >= 70 ? "excellent" : best >= 50 ? "good" : "fair", why: ["dusk"] });
+        bandWindows.sort((a, b) => a.from - b.from);
+      }
+    }
     return { slots, windows: bandWindows, sunrise, sunset };
   }
 

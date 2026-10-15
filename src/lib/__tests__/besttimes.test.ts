@@ -21,8 +21,10 @@ function tide(): { pts: Pt[]; turns: ReturnType<typeof turningPoints> } {
 
 const run = (over: Partial<Parameters<typeof scoreDay>[0]> = {}) => {
   const { pts, turns } = tide();
-  return scoreDay({ dayStart: DAY, pts, turns, lat: 29.37, lng: 48.0, profile: profileFor("شعم"), cond: () => ({ windKmh: 8, waveM: 0.1 }), ...over });
+  return scoreDay({ dayStart: DAY, pts, turns, lat: 29.37, lng: 48.0, profile: profileFor("سبيطي"), cond: () => ({ windKmh: 8, waveM: 0.1 }), ...over });
 };
+
+const nearest = (slots: ReturnType<typeof run>["slots"], target: number) => slots.reduce((b, s) => (Math.abs(s.t + 15 * 60_000 - target) < Math.abs(b.t + 15 * 60_000 - target) ? s : b));
 
 describe("best fishing times", () => {
   it("scores every half hour of the day, 0..100", () => {
@@ -31,26 +33,41 @@ describe("best fishing times", () => {
     expect(slots.every((s) => s.score >= 0 && s.score <= 100)).toBe(true);
   });
 
-  it("moving water scores higher than slack water at the same light", () => {
-    const { slots } = run({ profile: { ...profileFor("شعم"), dawn: 0.5, dusk: 0.5, night: 0.5, day: 0.5 } }); // flat light
-    const atHigh = slots.find((s) => Math.abs(s.t + 15 * 60_000 - (DAY + 3 * H)) < 20 * 60_000)!;
-    const midTide = slots.find((s) => Math.abs(s.t + 15 * 60_000 - (DAY + 6.1 * H)) < 20 * 60_000)!;
-    expect(midTide.move).toBeGreaterThan(atHigh.move + 0.25);
-    expect(midTide.score).toBeGreaterThan(atHigh.score);
-  });
-
-  it("slack water is the best tide state for balool/hamour, the worst for a moving-water fish", () => {
+  it("general fish (sobaity, shaam, nuwaibi…): best just after the slack (رشة الماء), lower before it, low in mid-tide", () => {
     const flat = { dawn: 0.5, dusk: 0.5, night: 0.5, day: 0.5 };
-    const grouper = run({ profile: { ...profileFor("بالول"), ...flat } }).slots;
-    const bream = run({ profile: { ...profileFor("شعم"), ...flat } }).slots;
-    const slackAt = grouper.findIndex((s) => s.dir === "waqfa");
-    const movingAt = grouper.findIndex((s) => s.move > 0.9);
-    expect(slackAt).toBeGreaterThanOrEqual(0);
-    expect(grouper[slackAt].score).toBeGreaterThan(grouper[movingAt].score);
-    expect(bream[slackAt].score).toBeLessThan(bream[movingAt].score);
+    const slots = run({ profile: { ...profileFor("سبيطي"), ...flat } }).slots;
+    const tHigh = DAY + 3 * H;
+    const after = nearest(slots, tHigh + 0.75 * H).score;
+    const before = nearest(slots, tHigh - 1.5 * H).score;
+    const mid = nearest(slots, tHigh + 3.1 * H).score;
+    expect(after).toBeGreaterThan(before);
+    expect(before).toBeGreaterThan(mid);
   });
 
-  it("hamour/balool: one ±2 h window around every high and low tide, strongest at the turn", () => {
+  it("general fish like the falling tide (ثبر) a little more than the rising tide", () => {
+    const p = profileFor("شعم");
+    expect(p.falling).toBeGreaterThan(p.rising);
+  });
+
+  it("sunrise lifts the light factor for general fish", () => {
+    const { slots, sunrise } = run();
+    expect(nearest(slots, sunrise!).light).toBeGreaterThan(0.8);
+  });
+
+  it("general fish get one window of at most 4 h per tide, with the start of the run marked", () => {
+    const r = run();
+    expect(r.windows.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < r.windows.length; i++) expect(r.windows[i].from).toBeGreaterThanOrEqual(r.windows[i - 1].from);
+    for (const w of r.windows) {
+      expect(w.to - w.from).toBeLessThanOrEqual(4 * H);
+      expect(w.peak?.kind).toBe("start");
+      expect(w.peak!.from).toBe(w.turn!.t);
+      expect(w.peak!.to - w.peak!.from).toBe(90 * 60_000);
+      expect(["excellent", "good", "fair"]).toContain(w.rating);
+    }
+  });
+
+  it("hamour: one window per tide, the peak is the slack itself (±30 min)", () => {
     const { pts, turns } = tide();
     const r = scoreDay({ dayStart: DAY, pts, turns, lat: 29.37, lng: 48.0, profile: profileFor("هامور"), cond: () => ({ windKmh: 8, waveM: 0.1 }) });
     const dayEnd = DAY + 24 * H;
@@ -58,28 +75,23 @@ describe("best fishing times", () => {
     expect(r.windows).toHaveLength(inDay.length);
     for (const w of r.windows) {
       expect(w.turn).toBeTruthy();
+      expect(w.peak?.kind).toBe("slack");
+      expect(w.peak!.to - w.peak!.from).toBe(60 * 60_000);
       expect(w.to - w.from).toBeLessThanOrEqual(4 * H);
-      expect(w.turn!.t).toBeGreaterThanOrEqual(w.from - 1);
-      expect(w.turn!.t).toBeLessThanOrEqual(w.to + 1);
     }
-    const tHigh = DAY + 3 * H; // a high tide
-    const near = (target: number) => r.slots.reduce((b, s) => (Math.abs(s.t + 15 * 60_000 - target) < Math.abs(b.t + 15 * 60_000 - target) ? s : b));
-    expect(near(tHigh).score).toBeGreaterThan(near(tHigh + 1.5 * H).score);
-    expect(near(tHigh + 1.5 * H).score).toBeGreaterThan(near(tHigh + 3.1 * H).score);
+    const tHigh = DAY + 3 * H;
+    expect(nearest(r.slots, tHigh).score).toBeGreaterThan(nearest(r.slots, tHigh + 1.5 * H).score);
+    expect(nearest(r.slots, tHigh + 1.5 * H).score).toBeGreaterThan(nearest(r.slots, tHigh + 3.1 * H).score);
   });
 
-  it("a slack-water window is explained as «slack»", () => {
-    const { windows } = run({ profile: profileFor("هامور") });
-    expect(windows.some((w) => w.why.includes("slack") || w.turn?.slack)).toBe(true);
-  });
-
-  it("gives 1–3 windows, time-ordered, each with a rating and reasons", () => {
-    const { windows } = run();
-    expect(windows.length).toBeGreaterThan(0);
-    expect(windows.length).toBeLessThanOrEqual(3);
-    for (let i = 1; i < windows.length; i++) expect(windows[i].from).toBeGreaterThan(windows[i - 1].from);
-    expect(["excellent", "good", "fair"]).toContain(windows[0].rating);
-    expect(windows.every((w) => w.to > w.from)).toBe(true);
+  it("balool is also active at sunset: a window covers the sunset, marked as dusk", () => {
+    const { windows, sunset } = run({ profile: profileFor("بالول") });
+    const covering = windows.filter((w) => sunset! >= w.from - 15 * 60_000 && sunset! <= w.to + 15 * 60_000);
+    expect(covering.length).toBeGreaterThan(0);
+    expect(covering.some((w) => w.why.includes("dusk"))).toBe(true);
+    // hamour has no special sunset rule
+    expect(profileFor("هامور").duskWindow).toBeFalsy();
+    expect(profileFor("بالول").duskWindow).toBe(true);
   });
 
   it("a rough sea lowers every score", () => {
@@ -96,7 +108,8 @@ describe("best fishing times", () => {
     expect(few).toEqual(none);
     const many = run({ personal: { rising: MIN_PERSONAL, falling: 0, waqfa: 0, n: MIN_PERSONAL } }).slots;
     const base = run().slots;
-    const i = many.findIndex((s) => s.dir === "rising" && s.score > 0 && s.score < 95);
+    const i = many.findIndex((s, k) => s.dir === "rising" && s.score > 0 && s.score < 95 && s.score !== base[k].score);
+    expect(i).toBeGreaterThanOrEqual(0);
     expect(many[i].score).toBeGreaterThan(base[i].score);
   });
 });
