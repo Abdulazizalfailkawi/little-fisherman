@@ -116,6 +116,7 @@ function BestTimes() {
     moving: t("مياه متحركة", "Moving water"),
     rising: t("سجي (صعود)", "Rising tide"),
     falling: t("ثبر (هبوط)", "Falling tide"),
+    slack: t("وقفة الماء 🎯", "Slack water 🎯"),
     dawn: t("فجر", "Dawn"),
     dusk: t("غروب", "Dusk"),
     night: t("ليل", "Night"),
@@ -230,6 +231,12 @@ function BestTimes() {
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
+                      {w.turn && (
+                        <Badge>
+                          {w.turn.type === "high" ? t("ساعتين حول أعلى مد", "±2 h around high tide") : t("ساعتين حول أدنى جزر", "±2 h around low tide")} · <bdi>{fmtTime(w.turn.t, lang)}</bdi>
+                        </Badge>
+                      )}
+                      {w.turn?.slack && <Badge>{WHY.slack}</Badge>}
                       {w.why.map((k) => (
                         <Badge key={k}>{WHY[k]}</Badge>
                       ))}
@@ -348,6 +355,9 @@ function BestTimes() {
                   </p>
                   <p>
                     <b className="text-white">{t("٣. تفضيل السمكة (١٥٪):", "3. Fish preference (15%):")}</b> {t("تقدير تقريبي للسجي أو الثبر لكل نوع.", "a rough rising/falling preference per fish.")}
+                  </p>
+                  <p>
+                    <b className="text-white">{t("البالول والهامور (قاعدة مجرّبة):", "Balool & hamour (a tested rule):")}</b> {t("ساعتين قبل وساعتين بعد أعلى مد، وساعتين قبل وساعتين بعد أدنى جزر، وأقواها وقت الوقفة. لكل مد وجزر نافذة (ممكن تصيد بأوقات ثانية، لكن هذي أحسن أوقاتهم). والضوء يعطي بس شوي من التقييم.", "two hours either side of every high and low tide, strongest at the slack. Each tide gets its own window (you can still catch at other times, but these are their best). Light adds only a little.")}
                   </p>
                   <p>{t("وبعدها ننزّل التقييم لو الرياح فوق ٢٥ كم/س أو الموج فوق ٠٫٨ م. ولو عندك ٨ صيدات أو أكثر من نفس النوع، نأخذ حالة المد وقت صيدك بالحسبان.", "Then we lower it for wind above 25 km/h or waves above 0.8 m. With 8+ catches of the same fish, your own tide history is blended in.")}</p>
                   <p className="text-warn">{t("هذا تقدير مبني على قواعد عامة ومد تقديري من نموذج، مو ضمان للصيد. استخدمه كدليل وجرّب بنفسك.", "This is an estimate from general rules and a modelled tide — not a guarantee. Use it as a guide.")}</p>

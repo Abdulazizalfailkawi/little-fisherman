@@ -39,6 +39,40 @@ describe("best fishing times", () => {
     expect(midTide.score).toBeGreaterThan(atHigh.score);
   });
 
+  it("slack water is the best tide state for balool/hamour, the worst for a moving-water fish", () => {
+    const flat = { dawn: 0.5, dusk: 0.5, night: 0.5, day: 0.5 };
+    const grouper = run({ profile: { ...profileFor("بالول"), ...flat } }).slots;
+    const bream = run({ profile: { ...profileFor("شعم"), ...flat } }).slots;
+    const slackAt = grouper.findIndex((s) => s.dir === "waqfa");
+    const movingAt = grouper.findIndex((s) => s.move > 0.9);
+    expect(slackAt).toBeGreaterThanOrEqual(0);
+    expect(grouper[slackAt].score).toBeGreaterThan(grouper[movingAt].score);
+    expect(bream[slackAt].score).toBeLessThan(bream[movingAt].score);
+  });
+
+  it("hamour/balool: one ±2 h window around every high and low tide, strongest at the turn", () => {
+    const { pts, turns } = tide();
+    const r = scoreDay({ dayStart: DAY, pts, turns, lat: 29.37, lng: 48.0, profile: profileFor("هامور"), cond: () => ({ windKmh: 8, waveM: 0.1 }) });
+    const dayEnd = DAY + 24 * H;
+    const inDay = turns.filter((x) => x.t + 2 * H > DAY && x.t - 2 * H < dayEnd);
+    expect(r.windows).toHaveLength(inDay.length);
+    for (const w of r.windows) {
+      expect(w.turn).toBeTruthy();
+      expect(w.to - w.from).toBeLessThanOrEqual(4 * H);
+      expect(w.turn!.t).toBeGreaterThanOrEqual(w.from - 1);
+      expect(w.turn!.t).toBeLessThanOrEqual(w.to + 1);
+    }
+    const tHigh = DAY + 3 * H; // a high tide
+    const near = (target: number) => r.slots.reduce((b, s) => (Math.abs(s.t + 15 * 60_000 - target) < Math.abs(b.t + 15 * 60_000 - target) ? s : b));
+    expect(near(tHigh).score).toBeGreaterThan(near(tHigh + 1.5 * H).score);
+    expect(near(tHigh + 1.5 * H).score).toBeGreaterThan(near(tHigh + 3.1 * H).score);
+  });
+
+  it("a slack-water window is explained as «slack»", () => {
+    const { windows } = run({ profile: profileFor("هامور") });
+    expect(windows.some((w) => w.why.includes("slack") || w.turn?.slack)).toBe(true);
+  });
+
   it("gives 1–3 windows, time-ordered, each with a rating and reasons", () => {
     const { windows } = run();
     expect(windows.length).toBeGreaterThan(0);
